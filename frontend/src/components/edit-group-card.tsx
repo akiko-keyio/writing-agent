@@ -1,0 +1,237 @@
+import { useState } from "react"
+import { IconArrowUpRight, IconChevronDown } from "@tabler/icons-react"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardFooter,
+  CardHeader,
+  CardPanel,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import { Separator } from "@/components/ui/separator"
+import { cn } from "@/lib/utils"
+import {
+  isLongEdit,
+  truncateText,
+  type DemoEdit,
+  type EditAppliedState,
+} from "@/lib/writing-demo"
+
+export interface EditGroupCardProps {
+  issue: string
+  edits: DemoEdit[]
+  editState: EditAppliedState
+  highlightedEditId?: string | null
+  defaultOpen?: boolean
+  onToggleEdit: (editId: string) => void
+  onViewInDocument: (editId: string) => void
+  onRevertAll: () => void
+  onDone: () => void
+}
+
+function editBadgeLabel(edit: DemoEdit, applied: boolean): string {
+  if (edit.type === "delete") {
+    return applied ? "remove" : "keep"
+  }
+  return applied ? "applied" : "kept"
+}
+
+function EditRow({
+  edit,
+  applied,
+  highlighted,
+  onToggle,
+  onViewInDocument,
+}: {
+  edit: DemoEdit
+  applied: boolean
+  highlighted: boolean
+  onToggle: () => void
+  onViewInDocument: () => void
+}) {
+  const isDelete = edit.type === "delete"
+  const long = isLongEdit(edit)
+  const badgeVariant = applied ? "success" : "warning"
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      data-edit-id={edit.id}
+      data-chat-edit-row={edit.id}
+      data-slot="edit-row"
+      onClick={onToggle}
+      className={cn(
+        "h-auto w-full items-start justify-start gap-2 rounded-none px-3.5 py-2.5 text-left font-normal hover:bg-accent/60",
+        highlighted && "bg-info/10",
+      )}
+    >
+      <div className="min-w-0 flex-1 break-words text-sm leading-snug">
+        {isDelete ? (
+          <div className="flex flex-wrap items-baseline gap-1.5">
+            <span
+              className={cn(
+                applied
+                  ? "text-muted-foreground line-through"
+                  : "font-medium text-foreground",
+              )}
+            >
+              {edit.old.trim()}
+            </span>
+          </div>
+        ) : long ? (
+          <div className="flex flex-col gap-1">
+            <span
+              className={cn(
+                "block",
+                applied
+                  ? "text-muted-foreground line-through"
+                  : "font-medium text-foreground",
+              )}
+            >
+              {truncateText(edit.old)}
+            </span>
+            <span className="block text-muted-foreground">→</span>
+            <span
+              className={cn(
+                "block",
+                applied
+                  ? "font-medium text-foreground"
+                  : "text-muted-foreground line-through",
+              )}
+            >
+              {truncateText(edit.new)}
+            </span>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-baseline gap-1.5">
+            <span
+              className={cn(
+                applied
+                  ? "text-muted-foreground line-through"
+                  : "font-medium text-foreground",
+              )}
+            >
+              {edit.old}
+            </span>
+            <span className="text-muted-foreground">→</span>
+            <span
+              className={cn(
+                applied
+                  ? "font-medium text-foreground"
+                  : "text-muted-foreground line-through",
+              )}
+            >
+              {edit.new}
+            </span>
+          </div>
+        )}
+
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="mt-1 h-auto gap-1 p-0 text-xs opacity-0 transition-opacity in-[[data-slot=edit-row]:hover]:opacity-100 focus-visible:opacity-100"
+          onClick={(e) => {
+            e.stopPropagation()
+            onViewInDocument()
+          }}
+        >
+          <IconArrowUpRight aria-hidden="true" />
+          {long ? "View in document" : "View"}
+        </Button>
+      </div>
+
+      <Badge variant={badgeVariant} size="sm" className="mt-0.5 shrink-0 capitalize">
+        {editBadgeLabel(edit, applied)}
+      </Badge>
+    </Button>
+  )
+}
+
+export function EditGroupCard({
+  issue,
+  edits,
+  editState,
+  highlightedEditId,
+  defaultOpen = true,
+  onToggleEdit,
+  onViewInDocument,
+  onRevertAll,
+  onDone,
+}: EditGroupCardProps) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="w-full min-w-0 max-w-full"
+    >
+      <Card className="w-full min-w-0 overflow-hidden rounded-xl py-0 shadow-xs/5">
+        <CardHeader className="flex flex-row items-center gap-2 border-b px-3.5 py-2.5">
+          <CardTitle className="min-w-0 flex-1 text-sm font-medium leading-snug">
+            {issue}
+          </CardTitle>
+          <CollapsibleTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 shrink-0 gap-1 px-2 text-muted-foreground"
+              />
+            }
+          >
+            <span className="text-xs tabular-nums">
+              {edits.length} edits
+            </span>
+            <IconChevronDown
+              aria-hidden="true"
+              className={cn("transition-transform", open && "rotate-180")}
+            />
+          </CollapsibleTrigger>
+        </CardHeader>
+
+        <CollapsiblePanel>
+          <CardPanel className="p-0">
+            {edits.map((edit, index) => (
+              <div key={edit.id}>
+                {index > 0 ? <Separator /> : null}
+                <EditRow
+                  edit={edit}
+                  applied={editState[edit.id] ?? false}
+                  highlighted={highlightedEditId === edit.id}
+                  onToggle={() => onToggleEdit(edit.id)}
+                  onViewInDocument={() => onViewInDocument(edit.id)}
+                />
+              </div>
+            ))}
+          </CardPanel>
+
+          <CardFooter className="flex items-center justify-end gap-2 border-t px-3.5 py-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={onRevertAll}
+            >
+              Revert all
+            </Button>
+            <Button type="button" size="sm" onClick={onDone}>
+              Done
+            </Button>
+          </CardFooter>
+        </CollapsiblePanel>
+      </Card>
+    </Collapsible>
+  )
+}

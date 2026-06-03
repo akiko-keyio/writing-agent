@@ -1,0 +1,33 @@
+---
+
+description: Point to spec
+
+alwaysApply: true
+
+---
+
+
+
+项目旨在构建 Writing Agent
+
+
+
+`docs/writing-agent-design.md` 描述了所有设计的基础
+
+
+
+UI 使用 [coss ui](https://coss.com/ui) 组件库，通过 shadcn CLI 从 `@coss/*` registry 安装；配置见 `frontend/components.json`。已安装 Agent Skill：`npx skills add cosscom/coss`（见 [Skills 文档](https://coss.com/ui/docs/skills)）。
+
+如果组件库存在现成的组件或规范，一定不要自己重新造。
+
+## COSS UI 约定（必须遵循）
+
+- **组件**：优先 `@/components/ui/*` primitive 与 [Particles](https://coss.com/ui/particles)；trigger 类组件用 `render` prop，不用 Radix `asChild` 思维。
+- **组件 API 完整性**：`ui/*` 下的 coss 组件只能使用上游文档（`.agents/skills/coss/references/primitives/<name>.md`）中明确列出的 variant / size / prop。禁止自行添加、扩展、删除任何 variant 或 size——即使看起来"合理推测"也不行。如需新值，须在 PR 中注明偏离上游的原因。
+- **图标**：全项目统一 `@tabler/icons-react`（`components.json` → `iconLibrary: "tabler"`）。装饰性图标加 `aria-hidden="true"`；仅图标按钮用 `aria-label`。
+- **样式**：用语义 token（`bg-background`、`text-muted-foreground` 等），禁止硬编码 palette；布局用 `flex flex-col gap-*`，不用 `space-y-*` / `space-x-*`；优先 `in-[[data-slot=…]]` 而非 `group`。
+- **主题**：CSS 变量链见 `frontend/src/index.css`（`:root` 定义 `--font-sans` / `--font-heading` / `--font-mono`，`@theme inline` 映射）；保留 `--alpha()` token，勿改为 `color-mix` 替代 border。
+- **全局布局**：`body.relative` + 根容器 `isolate relative flex min-h-svh flex-col`；`ToastProvider` / `TooltipProvider` 包裹应用。
+- **CLI 后处理**：`npx shadcn add @coss/<name>` 会把 `ui/*` 图标改回 lucide — 安装后须改回 Tabler 并保留 `aria-hidden`。勿运行 `@coss/style` 覆盖已有主题，除非有意全量同步。
+- **应用壳层**：布局 token 见 `shell-chrome.ts`；**图标钮只用** coss `Button`（`ShellIconButton` = ghost `icon-sm`），侧栏行用 `SidebarMenuButton size="sm"`，**禁止**自造 `<button>` 或给 Tabler 手写 `size-*`。Open Folder 在 File 菜单；打开 `.md` 仅在 Files 树。见 `docs/frontend-ui-handoff.md`。
+
