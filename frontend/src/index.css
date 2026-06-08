@@ -1,19 +1,46 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/inter";
+@import "@calcom/cal-sans-ui/ui.css";
 @import "@fontsource-variable/geist-mono";
+
+/* 中文：MiSans VF（自托管）；拉丁文仍由 Cal Sans UI 覆盖 */
+@font-face {
+    font-family: "MiSans VF";
+    src: url("/fonts/MiSansVF.woff2") format("woff2-variations"), url("/fonts/MiSansVF.woff2") format("woff2");
+    font-weight: 150 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range:
+        U+3000-303F,
+        U+3040-309F,
+        U+30A0-30FF,
+        U+3100-312F,
+        U+31F0-31FF,
+        U+3400-4DBF,
+        U+4E00-9FFF,
+        U+F900-FAFF,
+        U+FE30-FE4F,
+        U+FF00-FFEF,
+        U+20000-2A6DF,
+        U+2A700-2B73F,
+        U+2B740-2B81F,
+        U+2B820-2CEAF,
+        U+2CEB0-2EBEF;
+}
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
-    --font-heading: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+    --font-sans: "Cal Sans UI", "MiSans VF", ui-sans-serif, system-ui, sans-serif;
+    --font-heading: "Cal Sans UI", "MiSans VF", ui-sans-serif, system-ui, sans-serif;
     --font-mono: "Geist Mono Variable", ui-monospace, monospace;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-item-hover: var(--sidebar-item-hover);
+    --color-sidebar-item-selected: var(--sidebar-item-selected);
     --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
     --color-sidebar-primary: var(--sidebar-primary);
     --color-sidebar-foreground: var(--sidebar-foreground);
@@ -142,9 +169,17 @@
 }
 
 :root {
-    --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+    --font-sans: "Cal Sans UI", "MiSans VF", ui-sans-serif, system-ui, sans-serif;
     --font-heading: var(--font-sans);
     --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+    /* Chat markdown — Cal Sans + MiSans VF both support continuous wght */
+    --chat-font-weight-body: 400;
+    --chat-font-weight-emphasis: 560;
+    --content-reading-max: 48rem;
+    --content-inset-box: 1rem;
+    --content-inset-text: 2rem;
+    --chat-inset-box: var(--content-inset-box);
+    --chat-inset-text: var(--content-inset-text);
     --background: var(--color-white);
     --foreground: var(--color-neutral-800);
     --card: var(--color-white);
@@ -156,7 +191,7 @@
     --secondary: --alpha(var(--color-black) / 4%);
     --secondary-foreground: var(--color-neutral-800);
     --muted: --alpha(var(--color-black) / 4%);
-    --muted-foreground: var(--color-neutral-500);
+    --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-black));
     --accent: --alpha(var(--color-black) / 4%);
     --accent-foreground: var(--color-neutral-800);
     --destructive: var(--color-red-500);
@@ -175,6 +210,9 @@
     --sidebar-primary-foreground: var(--color-neutral-50);
     --sidebar-accent: --alpha(var(--color-black) / 4%);
     --sidebar-accent-foreground: var(--color-neutral-800);
+    /* 侧栏列表行（文件树等）：对齐 Toggle hover（accent 4%）/ pressed（input/64） */
+    --sidebar-item-hover: color-mix(in srgb, var(--foreground) 4%, var(--sidebar));
+    --sidebar-item-selected: color-mix(in srgb, var(--input) 64%, var(--sidebar));
     --sidebar-border: --alpha(var(--color-black) / 6%);
     --sidebar-ring: var(--color-neutral-400);
     --destructive-foreground: var(--color-red-700);
@@ -219,6 +257,8 @@
     --sidebar-primary-foreground: var(--color-neutral-800);
     --sidebar-accent: --alpha(var(--color-white) / 4%);
     --sidebar-accent-foreground: var(--color-neutral-100);
+    --sidebar-item-hover: color-mix(in srgb, var(--foreground) 4%, var(--sidebar));
+    --sidebar-item-selected: color-mix(in srgb, var(--input) 64%, var(--sidebar));
     --sidebar-border: --alpha(var(--color-white) / 5%);
     --sidebar-ring: var(--color-neutral-400);
     --destructive-foreground: var(--color-red-400);
@@ -239,16 +279,6 @@
  * - 侧栏行 SidebarMenuButton sm ≈ h-7 text-xs
  * - .icon-tabler stroke 1.5
  */
-
-/* 停靠面板（Explorer / Chat）与 Menu 弹层同色，避免误用变淡的 sidebar-foreground */
-.chrome-panel {
-  --sidebar: var(--background);
-  --sidebar-foreground: var(--foreground);
-  --sidebar-accent: var(--accent);
-  --sidebar-accent-foreground: var(--accent-foreground);
-  --sidebar-border: var(--border);
-  --sidebar-ring: var(--ring);
-}
 
 @layer base {
   * {
@@ -278,5 +308,29 @@
   samp,
   pre {
     font-family: var(--font-mono);
+  }
+}
+
+@layer components {
+  /**
+   * hover 渐隐 overlay（左透明 → 约 35% 处已实色）。
+   * --chrome-row-fade-end 须与同行 hover/选中底色一致。
+   */
+  .chrome-row-hover-fade-overlay-bg {
+    --chrome-row-fade-end: color-mix(in srgb, var(--foreground) 4%, var(--background));
+    background-image: linear-gradient(
+      to right,
+      transparent 0%,
+      var(--chrome-row-fade-end) 35%,
+      var(--chrome-row-fade-end) 100%
+    );
+  }
+
+  .chrome-row-hover-fade-overlay-bg--sidebar {
+    --chrome-row-fade-end: var(--sidebar-item-hover);
+  }
+
+  .chrome-row-hover-fade-overlay-bg--sidebar-selected {
+    --chrome-row-fade-end: var(--sidebar-item-selected);
   }
 }

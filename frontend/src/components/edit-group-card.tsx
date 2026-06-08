@@ -1,6 +1,6 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowDown01Icon, ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
 import { useState } from "react"
-import { IconArrowUpRight, IconChevronDown } from "@tabler/icons-react"
-
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,6 +16,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Separator } from "@/components/ui/separator"
+import { cardBarPad, gap, p, row, rowPad, stack } from "@/lib/spacing"
 import { cn } from "@/lib/utils"
 import {
   isLongEdit,
@@ -69,13 +70,17 @@ function EditRow({
       data-slot="edit-row"
       onClick={onToggle}
       className={cn(
-        "h-auto w-full items-start justify-start gap-2 rounded-none px-3.5 py-2.5 text-left font-normal hover:bg-accent/60",
+        cn(
+          "h-auto w-full items-start justify-start rounded-none text-left font-normal",
+          rowPad,
+          gap.sm
+        ),
         highlighted && "bg-info/10",
       )}
     >
       <div className="min-w-0 flex-1 break-words text-sm leading-snug">
         {isDelete ? (
-          <div className="flex flex-wrap items-baseline gap-1.5">
+          <div className={cn("flex flex-wrap items-baseline", gap.sm)}>
             <span
               className={cn(
                 applied
@@ -87,7 +92,7 @@ function EditRow({
             </span>
           </div>
         ) : long ? (
-          <div className="flex flex-col gap-1">
+          <div className={stack.xs}>
             <span
               className={cn(
                 "block",
@@ -111,7 +116,7 @@ function EditRow({
             </span>
           </div>
         ) : (
-          <div className="flex flex-wrap items-baseline gap-1.5">
+          <div className={cn("flex flex-wrap items-baseline", gap.sm)}>
             <span
               className={cn(
                 applied
@@ -138,13 +143,19 @@ function EditRow({
           type="button"
           variant="link"
           size="sm"
-          className="mt-1 h-auto gap-1 p-0 text-xs opacity-0 transition-opacity in-[[data-slot=edit-row]:hover]:opacity-100 focus-visible:opacity-100"
+          className={cn(
+            cn(
+              "mt-1 h-auto text-xs opacity-0 transition-opacity in-[[data-slot=edit-row]:hover]:opacity-100 focus-visible:opacity-100",
+              p[0].all
+            ),
+            gap.xs
+          )}
           onClick={(e) => {
             e.stopPropagation()
             onViewInDocument()
           }}
         >
-          <IconArrowUpRight aria-hidden="true" />
+          <HugeiconsIcon icon={ArrowUpRight01Icon} aria-hidden="true" />
           {long ? "View in document" : "View"}
         </Button>
       </div>
@@ -175,8 +186,15 @@ export function EditGroupCard({
       onOpenChange={setOpen}
       className="w-full min-w-0 max-w-full"
     >
-      <Card className="w-full min-w-0 overflow-hidden rounded-xl py-0 shadow-xs/5">
-        <CardHeader className="flex flex-row items-center gap-2 border-b px-3.5 py-2.5">
+      <Card
+        className={cn(
+          "w-full min-w-0 overflow-hidden rounded-lg shadow-xs/5",
+          p[0].y
+        )}
+      >
+        <CardHeader
+          className={cn("flex flex-row items-center border-b", cardBarPad, gap.sm)}
+        >
           <CardTitle className="min-w-0 flex-1 text-sm font-medium leading-snug">
             {issue}
           </CardTitle>
@@ -186,22 +204,19 @@ export function EditGroupCard({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-8 shrink-0 gap-1 px-2 text-muted-foreground"
+                className={cn("shrink-0 text-muted-foreground", gap.xs, p[2].x)}
               />
             }
           >
             <span className="text-xs tabular-nums">
               {edits.length} edits
             </span>
-            <IconChevronDown
-              aria-hidden="true"
-              className={cn("transition-transform", open && "rotate-180")}
-            />
+            <HugeiconsIcon icon={ArrowDown01Icon} aria-hidden="true" className={cn("transition-transform", open && "rotate-180")} />
           </CollapsibleTrigger>
         </CardHeader>
 
         <CollapsiblePanel>
-          <CardPanel className="p-0">
+          <CardPanel className={p[0].all}>
             {edits.map((edit, index) => (
               <div key={edit.id}>
                 {index > 0 ? <Separator /> : null}
@@ -216,7 +231,13 @@ export function EditGroupCard({
             ))}
           </CardPanel>
 
-          <CardFooter className="flex items-center justify-end gap-2 border-t px-3.5 py-2">
+          <CardFooter
+            className={cn(
+              "flex items-center justify-end border-t",
+              cardBarPad,
+              gap.sm
+            )}
+          >
             <Button
               type="button"
               variant="ghost"

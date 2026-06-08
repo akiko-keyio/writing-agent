@@ -12,6 +12,12 @@
       "sourceType": "github",
       "skillPath": "apps/ui/skills/coss-particles/SKILL.md",
       "computedHash": "189b06158600d157cf08da5915dda370732dde4e949aff4baabb7f37349d4fdd"
+    },
+    "nexus-ui": {
+      "source": "victorcodess/nexus-ui",
+      "sourceType": "github",
+      "skillPath": "skills/nexus-ui/SKILL.md",
+      "computedHash": "8169c6f9926d799f44f6875f5c28451a7a57247455423e614cf3b28397743db0"
     }
   }
 }

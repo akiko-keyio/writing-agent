@@ -1,413 +1,415 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
-
-
-import {
-  ChatPanelHeader,
-  DocumentFloatingChrome,
-  ExplorerPanelHeader,
-  type ExplorerPanel,
-} from "@/components/canvas-chrome"
-
-import { ChatThread } from "@/components/chat-thread"
-
-import {
-
-  DocumentEditor,
-
-  type DocumentEditorHandle,
-
-} from "@/components/document-editor"
-
-import { ExplorerFileTree } from "@/components/explorer-file-tree"
-import { ExplorerProjects } from "@/components/explorer-projects"
-
-import { ExplorerOutline } from "@/components/explorer-outline"
-
+import type { ExplorerView } from "@/components/canvas-chrome"
+import type { DocumentEditorHandle } from "@/components/document-editor"
+import { WorkbenchTopBar } from "@/components/workbench-top-bar"
+import { ExplorerPanel } from "@/components/explorer-panel"
+import { DocumentPanel } from "@/components/document-panel"
+import { ChatPanel } from "@/components/chat-panel"
+import { PanelResizeHandle } from "@/components/panel-resize-handle"
+import type { SettingsSection } from "@/components/settings-editor"
+import { useAgentSession } from "@/hooks/use-agent-session"
+import { useDocumentTabs } from "@/hooks/use-document-tabs"
+import { useChatSessions } from "@/hooks/use-chat-sessions"
+import { useSettings } from "@/hooks/use-settings"
+import { useWorkspace } from "@/hooks/use-workspace"
+import { usePanelResize } from "@/hooks/use-panel-resize"
+import type { DocumentPatchMessage } from "@/lib/agent-protocol"
+import type { EditorSelection } from "@/components/document-editor"
+import { invalidateFileReadCache } from "@/lib/file-read-cache"
+import { SETTINGS_PATH } from "@/lib/document-tabs"
+import { pathBasename, pathDirname, pathJoin } from "@/lib/path"
+import { suggestNewFilePath } from "@/lib/suggest-new-file-path"
+import { suggestNewFolderPath } from "@/lib/suggest-new-folder-path"
 import { toastManager } from "@/components/ui/toast"
-
-import {
-
-  SidebarContent,
-
-  SidebarGroup,
-
-  SidebarGroupContent,
-
-  SidebarProvider,
-
-} from "@/components/ui/sidebar"
-
-import type { DocumentTocEntry } from "@/lib/document-toc"
-
-import { pickWorkspaceFolder } from "@/lib/local-workspace"
-import {
-  folderProjectEntry,
-  loadRecentProjects,
-  rememberRecentProject,
-  REPO_PROJECT,
-  type ProjectEntry,
-} from "@/lib/project-catalog"
-import {
-  createFolderWorkspaceClient,
-  createProjectWorkspaceClient,
-  findFirstMarkdownPath,
-  type WorkspaceClient,
-} from "@/lib/workspace-client"
-import { pathBasename } from "@/lib/path"
-import {
-  ensureWorkspaceHandlePermission,
-  loadAllWorkspaceHandles,
-  loadWorkspaceHandle,
-  saveWorkspaceHandle,
-} from "@/lib/workspace-handle-store"
-import { DEFAULT_WORKSPACE_FILE, type WorkspaceFileNode } from "@/lib/workspace-api"
 import { shell } from "@/lib/shell-chrome"
+import { useViewportWidth } from "@/hooks/use-media-query"
+import {
+  CHAT_PANEL_MIN_PX,
+  EXPLORER_PANEL_MIN_PX,
+  EXPLORER_PANEL_WIDTH_DEFAULT,
+  computeInitialChatPanelWidth,
+  computeMaxChatPanelWidth,
+  resolveWorkbenchLayout,
+  type WorkbenchFullscreenPane,
+  workbenchGridTemplateColumns,
+} from "@/lib/workbench-grid"
 import { cn } from "@/lib/utils"
 
-
-
-const EXPLORER_EXPANDED_WIDTH = "18rem"
-
-const CHAT_EXPANDED_WIDTH = "min(380px, 36vw)"
-
-
+const EXPLORER_PANEL_WIDTH_MIN = EXPLORER_PANEL_MIN_PX
+const EXPLORER_PANEL_WIDTH_MAX = 420
 
 export function Layout() {
-
-  const [explorerPanel, setExplorerPanel] = useState<ExplorerPanel | null>(
-
-    "files",
-
+  const viewportWidth = useViewportWidth()
+  const chatPanelMax = computeMaxChatPanelWidth(viewportWidth)
+  const chatPanelInitial = Math.min(
+    computeInitialChatPanelWidth(viewportWidth),
+    chatPanelMax,
   )
 
-  const [chatOpen, setChatOpen] = useState(false)
-
-  const [chatSessionKey, setChatSessionKey] = useState(0)
-
-  const [fileTree, setFileTree] = useState<WorkspaceFileNode[]>([])
-
-  const [treeLoading, setTreeLoading] = useState(true)
-
-  const [treeError, setTreeError] = useState<string | null>(null)
-
-  const [activePath, setActivePath] = useState<string | null>(null)
-
-  const [documentContent, setDocumentContent] = useState("")
-
-  const [documentLoading, setDocumentLoading] = useState(true)
-
+  const [explorerView, setExplorerView] = useState<ExplorerView | null>("file")
+  const lastExplorerTabRef = useRef<ExplorerView>("file")
   const documentEditorRef = useRef<DocumentEditorHandle>(null)
+  const [editorSelection, setEditorSelection] =
+    useState<EditorSelection | null>(null)
+  const welcomeShownRef = useRef(false)
+  const [fullscreenPane, setFullscreenPane] =
+    useState<WorkbenchFullscreenPane | null>(null)
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("models")
+  const [settingsStartAddModel, setSettingsStartAddModel] = useState(false)
 
-  const documentScrollRef = useRef<HTMLElement>(null)
-
-  const [tocEntries, setTocEntries] = useState<DocumentTocEntry[]>([])
-
-
-
-  const workspaceRef = useRef<WorkspaceClient>(createProjectWorkspaceClient())
-  /** 本地工作区句柄：内存 + IndexedDB，刷新后可恢复授权 */
-  const folderHandlesRef = useRef(
-    new Map<string, FileSystemDirectoryHandle>(),
-  )
-  const handlesHydratedRef = useRef(false)
-  const [linkedFolderIds, setLinkedFolderIds] = useState<Set<string>>(
-    () => new Set(),
-  )
-  const [workspaceEpoch, setWorkspaceEpoch] = useState(0)
-  const [activeProject, setActiveProject] = useState<ProjectEntry | null>(
-    REPO_PROJECT,
-  )
-  const [recentProjects, setRecentProjects] = useState<ProjectEntry[]>(() => {
-    const loaded = loadRecentProjects()
-    return loaded.length > 0 ? loaded : [REPO_PROJECT]
+  const explorerPanel = usePanelResize({
+    initial: EXPLORER_PANEL_WIDTH_DEFAULT,
+    min: EXPLORER_PANEL_WIDTH_MIN,
+    max: EXPLORER_PANEL_WIDTH_MAX,
+    direction: "ltr-panel",
+  })
+  const chatPanel = usePanelResize({
+    initial: chatPanelInitial,
+    min: CHAT_PANEL_MIN_PX,
+    max: chatPanelMax,
+    direction: "rtl-panel",
   })
 
-  const openFile = useCallback(async (path: string) => {
+  const {
+    fileTree,
+    treeLoading,
+    treeError,
+    activeProject,
+    recentProjects,
+    linkedFolderIds,
+    mentionablePaths,
+    workspace,
+    handleOpenFolder,
+    handleSelectProject,
+    refreshFileTree,
+    setFileOpenCallback,
+  } = useWorkspace()
 
-    setDocumentLoading(true)
+  const handleDocumentPatch = useCallback(
+    (patch: DocumentPatchMessage) => {
+      if (patch.document) {
+        documentTabs.setDocumentContent(patch.document)
+        if (documentTabs.activePath) {
+          documentTabs.skipNextDocumentOpenRef.current = true
+        }
+      }
+    },
+    []
+  )
 
-    setTocEntries([])
+  const settings = useSettings()
 
-    try {
-
-      const content = await workspaceRef.current.readFile(path)
-
-      setActivePath(path)
-
-      setDocumentContent(content)
-
-      setExplorerPanel((panel) => panel ?? "files")
-
-    } catch (err) {
-
-      const message =
-
-        err instanceof Error ? err.message : "Could not open file"
-
+  const agent = useAgentSession({
+    onDocumentPatch: handleDocumentPatch,
+    onError: (message) => {
       toastManager.add({
-
         type: "error",
-
-        title: "Open failed",
-
+        title: "Agent error",
         description: message,
-
       })
+    },
+    onAgentMessage: settings.handleMessage,
+  })
 
-    } finally {
+  useEffect(() => {
+    if (agent.connectionState !== "open" || welcomeShownRef.current) return
+    welcomeShownRef.current = true
+    agent.setWelcomeMessage("Ask me about your writing or any project file.")
+  }, [agent.connectionState, agent.setWelcomeMessage])
 
-      setDocumentLoading(false)
+  const syncDocumentToAgent = useCallback(
+    (document: string, path: string, isOpen = false) => {
+      if (isOpen) {
+        agent.sendDocumentOpen(document, path)
+      } else {
+        agent.sendDocumentChange(document, path)
+      }
+    },
+    [agent.sendDocumentOpen, agent.sendDocumentChange]
+  )
 
+  const documentTabs = useDocumentTabs({
+    workspace,
+    onDocumentOpen: (content, path) => {
+      syncDocumentToAgent(content, path, true)
+    },
+    onDocumentChange: (content, path) => {
+      syncDocumentToAgent(content, path)
+    },
+  })
+
+  // Update workspace's file open callback after documentTabs is available
+  useEffect(() => {
+    setFileOpenCallback((path) => {
+      void documentTabs.openFile(path)
+    })
+  }, [setFileOpenCallback, documentTabs.openFile])
+
+  const isSettingsTab = documentTabs.activePath === SETTINGS_PATH
+
+  useEffect(() => {
+    if (agent.connectionState === "open" || isSettingsTab) {
+      settings.load()
     }
+  }, [agent.connectionState, isSettingsTab, settings.load])
 
+  const handleSettingsBack = useCallback(() => {
+    documentTabs.handleCloseTab(SETTINGS_PATH)
+  }, [documentTabs.handleCloseTab])
+
+  const handleOpenSettings = useCallback(() => {
+    if (explorerView == null) {
+      setExplorerView(lastExplorerTabRef.current)
+    }
+    void documentTabs.openSettings()
+  }, [documentTabs.openSettings, explorerView])
+
+  const handleOpenModelsSettings = useCallback(() => {
+    setSettingsSection("models")
+    setSettingsStartAddModel(true)
+    if (explorerView == null) {
+      setExplorerView(lastExplorerTabRef.current)
+    }
+    void documentTabs.openSettings()
+  }, [documentTabs.openSettings, explorerView])
+
+  const handleSettingsSectionChange = useCallback((section: SettingsSection) => {
+    setSettingsSection(section)
   }, [])
 
-  const refreshLinkedFolderHandles = useCallback(async () => {
-    const stored = await loadAllWorkspaceHandles()
-    folderHandlesRef.current = stored
-    setLinkedFolderIds(new Set(stored.keys()))
-    handlesHydratedRef.current = true
+  const handleSettingsStartAddModelHandled = useCallback(() => {
+    setSettingsStartAddModel(false)
   }, [])
 
-  useEffect(() => {
-    void refreshLinkedFolderHandles()
-  }, [refreshLinkedFolderHandles])
+  const handleOpenFile = useCallback(
+    (path: string) => {
+      void documentTabs.openFile(path)
+      setFullscreenPane(null)
+    },
+    [documentTabs.openFile]
+  )
 
-  const rememberFolderHandle = useCallback((entryId: string) => {
-    setLinkedFolderIds((prev) => new Set(prev).add(entryId))
-  }, [])
+  const handleRenameFile = useCallback(
+    async (path: string) => {
+      const currentName = pathBasename(path)
+      const nextName = window.prompt("Rename file", currentName)?.trim()
+      if (!nextName || nextName === currentName) return
 
-  useEffect(() => {
+      if (nextName.includes("/") || nextName.includes("\\")) {
+        toastManager.add({
+          type: "error",
+          title: "Rename failed",
+          description: "Use a file name, not a path.",
+        })
+        return
+      }
 
-    let cancelled = false
+      if (!nextName.endsWith(".md")) {
+        toastManager.add({
+          type: "error",
+          title: "Rename failed",
+          description: "Markdown files must keep the .md extension.",
+        })
+        return
+      }
 
-    void (async () => {
-
-      setTreeLoading(true)
-
-      setTreeError(null)
+      const nextPath = pathJoin(pathDirname(path), nextName)
 
       try {
-
-        const workspace = workspaceRef.current
-
-        const tree = await workspace.listTree()
-
-        if (cancelled) return
-
-        setFileTree(tree)
-
-        const initialPath =
-
-          workspace.id === "project"
-
-            ? DEFAULT_WORKSPACE_FILE
-
-            : findFirstMarkdownPath(tree)
-
-        if (initialPath) {
-
-          await openFile(initialPath)
-
-        } else {
-
-          setActivePath(null)
-
-          setDocumentContent("")
-
-          setDocumentLoading(false)
-
+        await workspace.renameFile(path, nextPath)
+        invalidateFileReadCache(path)
+        await refreshFileTree()
+        documentTabs.repathOpenTabs([{ from: path, to: nextPath }])
+        if (documentTabs.activePath === path) {
+          documentTabs.setActivePath(nextPath)
+          syncDocumentToAgent(documentTabs.documentContent, pathBasename(nextPath), true)
         }
-
+        toastManager.add({
+          type: "success",
+          title: "File renamed",
+          description: nextPath,
+        })
       } catch (err) {
+        toastManager.add({
+          type: "error",
+          title: "Rename failed",
+          description:
+            err instanceof Error ? err.message : "Could not rename file",
+        })
+      }
+    },
+    [documentTabs, workspace, refreshFileTree, syncDocumentToAgent]
+  )
 
-        if (cancelled) return
+  const handleMoveFiles = useCallback(
+    async (moves: ReadonlyArray<{ from: string; to: string }>) => {
+      if (moves.length === 0) return
 
-        const message =
+      try {
+        for (const { from, to } of moves) {
+          await workspace.renameFile(from, to)
+          invalidateFileReadCache(from)
+        }
+        await refreshFileTree()
 
-          err instanceof Error ? err.message : "Could not load workspace"
+        documentTabs.repathOpenTabs(moves)
 
-        setTreeError(message)
+        const pathMap = new Map(moves.map(({ from, to }) => [from, to]))
+        const active = documentTabs.activePath
+        if (active && pathMap.has(active)) {
+          const nextPath = pathMap.get(active)!
+          documentTabs.setActivePath(nextPath)
+          syncDocumentToAgent(
+            documentTabs.documentContent,
+            pathBasename(nextPath),
+            true
+          )
+        }
 
         toastManager.add({
-
-          type: "error",
-
-          title: "Workspace unavailable",
-
-          description:
-
-            workspaceRef.current.id === "project"
-
-              ? "Start the dev server (pnpm dev) to browse project files."
-
-              : message,
-
+          type: "success",
+          title:
+            moves.length === 1 ? "File moved" : `${moves.length} files moved`,
+          description: moves.map(({ to }) => to).join(", "),
         })
-
-      } finally {
-
-        if (!cancelled) setTreeLoading(false)
-
+      } catch (err) {
+        toastManager.add({
+          type: "error",
+          title: "Move failed",
+          description:
+            err instanceof Error ? err.message : "Could not move files",
+        })
       }
-
-    })()
-
-    return () => {
-
-      cancelled = true
-
-    }
-
-  }, [workspaceEpoch, openFile])
-
-  const applyFolderWorkspace = useCallback(
-    (handle: FileSystemDirectoryHandle) => {
-      const entry = folderProjectEntry(handle)
-      folderHandlesRef.current.set(entry.id, handle)
-      void saveWorkspaceHandle(entry.id, handle)
-      rememberFolderHandle(entry.id)
-      workspaceRef.current = createFolderWorkspaceClient(handle)
-      setActiveProject(entry)
-      setRecentProjects(rememberRecentProject(entry))
-      setActivePath(null)
-      setDocumentContent("")
-      setTocEntries([])
-      setWorkspaceEpoch((epoch) => epoch + 1)
-      return entry
     },
-    [rememberFolderHandle],
+    [documentTabs, workspace, refreshFileTree, syncDocumentToAgent]
   )
 
-  const handleOpenFolder = useCallback(async () => {
+  const handleCopyFileFolderPath = useCallback(async (path: string) => {
     try {
-      const handle = await pickWorkspaceFolder()
-      const entry = applyFolderWorkspace(handle)
-      setExplorerPanel("files")
+      const folderPath = await workspace.getFileFolderPath(path)
+      await navigator.clipboard.writeText(folderPath)
       toastManager.add({
         type: "success",
-        title: "Workspace opened",
-        description: entry.name,
+        title: "Folder path copied",
+        description: folderPath,
       })
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return
-
-      const message =
-        err instanceof Error ? err.message : "Could not open folder"
-
       toastManager.add({
         type: "error",
-        title: "Open workspace failed",
-        description: message,
+        title: "Copy failed",
+        description: err instanceof Error ? err.message : "Could not copy path",
       })
     }
-  }, [applyFolderWorkspace])
+  }, [workspace])
 
-  const handleSelectProject = useCallback(
-    (entry: ProjectEntry) => {
-      if (entry.id === activeProject?.id) {
-        setRecentProjects(rememberRecentProject(entry))
-        return
-      }
-      if (entry.id === REPO_PROJECT.id) {
-        workspaceRef.current = createProjectWorkspaceClient()
-        setActiveProject(entry)
-        setRecentProjects(rememberRecentProject(entry))
-        setWorkspaceEpoch((epoch) => epoch + 1)
-        setExplorerPanel("files")
-        return
-      }
-
-      void (async () => {
-        if (!handlesHydratedRef.current) {
-          await refreshLinkedFolderHandles()
-        }
-
-        let handle: FileSystemDirectoryHandle | undefined =
-          folderHandlesRef.current.get(entry.id)
-        if (!handle) {
-          const stored = await loadWorkspaceHandle(entry.id)
-          if (stored) {
-            handle = stored
-            folderHandlesRef.current.set(entry.id, stored)
-            rememberFolderHandle(entry.id)
-          }
-        }
-
-        if (handle) {
-          const allowed = await ensureWorkspaceHandlePermission(handle)
-          if (allowed) {
-            applyFolderWorkspace(handle)
-            setExplorerPanel("files")
-            return
-          }
-        }
-
-        try {
-          const picked = await pickWorkspaceFolder()
-          applyFolderWorkspace(picked)
-          setExplorerPanel("files")
-        } catch (err) {
-          if (err instanceof DOMException && err.name === "AbortError") return
-          toastManager.add({
-            type: "error",
-            title: "Open workspace failed",
-            description:
-              err instanceof Error ? err.message : "Could not open folder",
-          })
-        }
-      })()
-    },
-    [
-      activeProject?.id,
-      applyFolderWorkspace,
-      refreshLinkedFolderHandles,
-      rememberFolderHandle,
-    ],
-  )
-
-  const focusAnchorInDocument = useCallback((_editId: string) => {
-
-    toastManager.add({
-
-      type: "info",
-
-      title: "Edit anchors",
-
-      description: "Anchors apply to the writing demo document only.",
-
-    })
-
+  const handleExplorerTabChange = useCallback((view: ExplorerView) => {
+    lastExplorerTabRef.current = view
+    setExplorerView(view)
   }, [])
 
+  const handleCreateFileIn = useCallback(async (parentDir: string) => {
+    const filePath = suggestNewFilePath(fileTree, parentDir)
+    const fileName = pathBasename(filePath)
+    const chosenName = window.prompt("New file name", fileName)?.trim()
+    if (!chosenName) return
 
+    if (chosenName.includes("/") || chosenName.includes("\\")) {
+      toastManager.add({
+        type: "error",
+        title: "Create failed",
+        description: "Use a file name, not a path.",
+      })
+      return
+    }
 
+    const baseName = chosenName.endsWith(".md") ? chosenName : `${chosenName}.md`
+    const nextPath = parentDir ? pathJoin(parentDir, baseName) : baseName
 
+    try {
+      await workspace.writeFile(nextPath, "# New document\n")
+      invalidateFileReadCache(nextPath)
+      await refreshFileTree()
+      void documentTabs.openFile(nextPath)
+      toastManager.add({
+        type: "success",
+        title: "File created",
+        description: nextPath,
+      })
+    } catch (err) {
+      toastManager.add({
+        type: "error",
+        title: "Create failed",
+        description:
+          err instanceof Error ? err.message : "Could not create file",
+      })
+    }
+  }, [documentTabs, fileTree, workspace, refreshFileTree])
 
+  const handleCreateFolderIn = useCallback(async (parentDir: string) => {
+    const folderPath = suggestNewFolderPath(fileTree, parentDir)
+    const folderName = pathBasename(folderPath)
+    const chosenName = window.prompt("New folder name", folderName)?.trim()
+    if (!chosenName) return
 
-  const handleNewChat = useCallback(() => {
-    setChatSessionKey((k) => k + 1)
+    if (chosenName.includes("/") || chosenName.includes("\\")) {
+      toastManager.add({
+        type: "error",
+        title: "Create failed",
+        description: "Use a folder name, not a path.",
+      })
+      return
+    }
+
+    const nextPath = parentDir ? pathJoin(parentDir, chosenName) : chosenName
+
+    try {
+      await workspace.createFolder(nextPath)
+      await refreshFileTree()
+      toastManager.add({
+        type: "success",
+        title: "Folder created",
+        description: nextPath,
+      })
+    } catch (err) {
+      toastManager.add({
+        type: "error",
+        title: "Create failed",
+        description:
+          err instanceof Error ? err.message : "Could not create folder",
+      })
+    }
+  }, [fileTree, workspace, refreshFileTree])
+
+  const handleOutlineNavigate = useCallback((id: string) => {
+    documentEditorRef.current?.scrollToHeading(id)
   }, [])
 
+  const handleOpenFileFolder = useCallback(async (path: string) => {
+    try {
+      await workspace.openFileFolder(path)
+    } catch (err) {
+      toastManager.add({
+        type: "error",
+        title: "Open path failed",
+        description:
+          err instanceof Error ? err.message : "Could not open folder path",
+      })
+    }
+  }, [workspace])
 
-
-  const handleShowChatHistory = useCallback(() => {
-
-    toastManager.add({
-
-      type: "info",
-
-      title: "Chat history",
-
-      description: "Conversation list will be available in a later phase.",
-
-    })
-
-  }, [])
+  const chatSessions = useChatSessions({
+    messages: agent.messages,
+    connectionState: agent.connectionState,
+    backendSessions: agent.backendSessions,
+    activeSessionId: agent.activeSessionId,
+    createSession: agent.createSession,
+    switchSession: agent.switchSession,
+    setWelcomeMessage: agent.setWelcomeMessage,
+  })
 
   useEffect(() => {
-    const file = activePath ? pathBasename(activePath) : null
+    const file = documentTabs.activePath ? pathBasename(documentTabs.activePath) : null
     const project = activeProject?.name
     if (file && project) {
       document.title = `${file} · ${project}`
@@ -418,225 +420,240 @@ export function Layout() {
     } else {
       document.title = "Writing Agent"
     }
-  }, [activePath, activeProject])
-
-  return (
-
-    <div className="flex h-screen overflow-hidden bg-background">
-
-      <aside
-
-        aria-label={
-
-          explorerPanel === "projects"
-            ? "Projects"
-            : explorerPanel === "files"
-              ? "Files"
-              : "Document outline"
-
-        }
-
-        aria-expanded={explorerPanel != null}
-
-        aria-hidden={explorerPanel == null}
-
-        className={cn(
-
-          "chrome-panel flex shrink-0 flex-col overflow-hidden border-r bg-background",
-
-          "transition-[width] duration-200 ease-out",
-
-          explorerPanel == null && "pointer-events-none border-r-0",
-
-        )}
-
-        style={{
-
-          width: explorerPanel != null ? EXPLORER_EXPANDED_WIDTH : 0,
-
-        }}
-
-      >
-
-        {explorerPanel != null ? (
-          <ExplorerPanelHeader
-            panel={explorerPanel}
-            onPanelChange={setExplorerPanel}
-            onClose={() => setExplorerPanel(null)}
-          />
-        ) : null}
-
-        <SidebarProvider
-
-          open
-
-          onOpenChange={() => {}}
-
-          className={cn(
-
-            "flex min-h-0 flex-1 flex-col !min-h-0",
-
-            explorerPanel != null ? shell.panelBodyWithHeader : shell.panelBody,
-
-          )}
-
-        >
-
-          <SidebarGroup className="flex min-h-0 flex-1 flex-col p-0">
-
-            <SidebarGroupContent className="flex min-h-0 flex-1 flex-col">
-
-              <SidebarContent className="min-h-0 flex-1 overflow-y-auto px-0">
-
-                {explorerPanel === "projects" ? (
-                  <ExplorerProjects
-                    activeProject={activeProject}
-                    projects={recentProjects}
-                    linkedFolderIds={linkedFolderIds}
-                    onSelectProject={handleSelectProject}
-                    onOpenFolder={() => void handleOpenFolder()}
-                  />
-                ) : explorerPanel === "files" ? (
-                  <ExplorerFileTree
-                    tree={fileTree}
-                    activePath={activePath}
-                    onOpenFile={(path) => void openFile(path)}
-                    loading={treeLoading}
-                    error={treeError}
-                  />
-                ) : explorerPanel === "outline" ? (
-
-                  <ExplorerOutline
-
-                    entries={tocEntries}
-
-                    onNavigate={(id) =>
-
-                      documentEditorRef.current?.scrollToHeading(id)
-
-                    }
-
-                  />
-
-                ) : null}
-
-              </SidebarContent>
-
-            </SidebarGroupContent>
-
-          </SidebarGroup>
-
-        </SidebarProvider>
-
-      </aside>
-
-
-
-      <main
-
-        ref={documentScrollRef}
-
-        className="relative min-h-0 min-w-0 flex-1 overflow-y-auto"
-
-      >
-
-        <DocumentFloatingChrome
-          explorerOpen={explorerPanel != null}
-          onExplorerOpenChange={(open) => setExplorerPanel(open ? "files" : null)}
-          chatOpen={chatOpen}
-          onChatOpenChange={setChatOpen}
-          pendingCount={0}
-        />
-
-        {documentLoading ? (
-
-          <p className="px-12 pt-8 text-muted-foreground">Loading document…</p>
-
-        ) : activePath ? (
-
-          <DocumentEditor
-
-            key={activePath}
-
-            ref={documentEditorRef}
-
-            filePath={activePath}
-
-            content={documentContent}
-
-            scrollParentRef={documentScrollRef}
-
-            onTocUpdate={setTocEntries}
-
-          />
-
-        ) : (
-
-          <p className="px-12 pt-8 text-muted-foreground">
-
-            Select a file from the explorer.
-
-          </p>
-
-        )}
-
-      </main>
-
-
-
-      <aside
-
-        aria-label="Chat"
-
-        aria-expanded={chatOpen}
-
-        aria-hidden={!chatOpen}
-
-        className={cn(
-
-          "chrome-panel flex shrink-0 flex-col overflow-hidden border-l bg-background",
-
-          "transition-[width] duration-200 ease-out",
-
-          !chatOpen && "pointer-events-none border-l-0",
-
-        )}
-
-        style={{
-
-          width: chatOpen ? CHAT_EXPANDED_WIDTH : 0,
-
-        }}
-
-      >
-
-        {chatOpen ? (
-
-          <ChatPanelHeader
-
-            onClose={() => setChatOpen(false)}
-
-            onNewChat={handleNewChat}
-
-            onShowChatHistory={handleShowChatHistory}
-
-          />
-
-        ) : null}
-
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <ChatThread
-            key={chatSessionKey}
-            onViewInDocument={focusAnchorInDocument}
-          />
-        </div>
-
-      </aside>
-
-    </div>
-
+  }, [documentTabs.activePath, activeProject])
+
+  const explorerOpen = explorerView != null
+  const chatPanelOpen = chatSessions.chatOpen
+  const explorerWidth = explorerOpen ? explorerPanel.width : 0
+  const chatWidth = chatPanelOpen ? chatPanel.width : 0
+  const { gridExplorerWidth, gridChatWidth } = resolveWorkbenchLayout(
+    viewportWidth,
+    explorerOpen,
+    chatPanelOpen,
+    explorerWidth,
+    chatWidth
   )
 
+  useEffect(() => {
+    if (fullscreenPane === "explorer" && gridExplorerWidth > 0) {
+      setFullscreenPane(null)
+    }
+    if (fullscreenPane === "chat" && gridChatWidth > 0) {
+      setFullscreenPane(null)
+    }
+  }, [fullscreenPane, gridExplorerWidth, gridChatWidth])
+
+  const handleExplorerPanelOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        if (fullscreenPane === "explorer") {
+          setFullscreenPane(null)
+          return
+        }
+        if (explorerOpen && gridExplorerWidth === 0) {
+          setFullscreenPane("explorer")
+          return
+        }
+        if (explorerView) {
+          lastExplorerTabRef.current = explorerView
+        }
+        setExplorerView(null)
+        setFullscreenPane(null)
+        return
+      }
+      setExplorerView(lastExplorerTabRef.current)
+      if (gridExplorerWidth === 0) {
+        setFullscreenPane("explorer")
+      }
+    },
+    [explorerOpen, explorerView, fullscreenPane, gridExplorerWidth]
+  )
+
+  const handleChatPanelOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        if (fullscreenPane === "chat") {
+          setFullscreenPane(null)
+          return
+        }
+        if (chatPanelOpen && gridChatWidth === 0) {
+          setFullscreenPane("chat")
+          return
+        }
+        chatSessions.setChatOpen(false)
+        setFullscreenPane(null)
+        return
+      }
+      chatSessions.setChatOpen(true)
+      if (gridChatWidth === 0) {
+        setFullscreenPane("chat")
+      }
+    },
+    [
+      chatPanelOpen,
+      chatSessions.setChatOpen,
+      fullscreenPane,
+      gridChatWidth,
+    ]
+  )
+
+  const isFullscreen = fullscreenPane != null
+
+  const explorerPanelProps = {
+    explorerView,
+    fileTree,
+    activePath: documentTabs.activePath,
+    treeLoading,
+    treeError,
+    tocEntries: documentTabs.tocEntries,
+    activeProject,
+    onOpenFile: handleOpenFile,
+    onOpenSettings: handleOpenSettings,
+    onCreateFile: (parentDir: string) => void handleCreateFileIn(parentDir),
+    onCreateFolder: (parentDir: string) => void handleCreateFolderIn(parentDir),
+    onRenameFile: (path: string) => void handleRenameFile(path),
+    onCopyFileFolderPath: (path: string) => void handleCopyFileFolderPath(path),
+    onOpenFileFolder: (path: string) => void handleOpenFileFolder(path),
+    onMoveFiles: (moves: ReadonlyArray<{ from: string; to: string }>) =>
+      void handleMoveFiles(moves),
+    onOutlineNavigate: handleOutlineNavigate,
+    settingsActive: isSettingsTab,
+    settingsSection,
+    onSettingsSectionChange: handleSettingsSectionChange,
+  } as const
+
+  const activeModelLabel =
+    settings.config?.models.find((m) => m.id === settings.config?.active)?.model ??
+    settings.config?.models[0]?.model ??
+    "No model"
+
+  const chatPanelProps = {
+    chatOpen: chatPanelOpen,
+    messages: agent.messages,
+    agentThinking: agent.agentThinking,
+    isStreaming: agent.isStreaming,
+    connectionState: agent.connectionState,
+    activeFilename: documentTabs.activePath
+      ? pathBasename(documentTabs.activePath)
+      : null,
+    activePath: documentTabs.activePath,
+    documentContent: documentTabs.documentContent,
+    mentionablePaths,
+    editorSelection,
+    onSend: agent.sendChat,
+    onResendFromMessage: agent.sendChatFromMessage,
+    onStopStreaming: agent.stopStreaming,
+    models: settings.config?.models ?? [],
+    activeModelId: settings.config?.active ?? null,
+    onSelectModel: settings.setActiveModel,
+    onOpenModelsSettings: handleOpenModelsSettings,
+  } as const
+
+  return (
+    <div className="relative flex h-screen min-w-0 flex-col overflow-hidden bg-background">
+      <WorkbenchTopBar
+        explorerPanelWidth={gridExplorerWidth}
+        explorerView={explorerView}
+        onExplorerPanelOpenChange={handleExplorerPanelOpenChange}
+        onExplorerTabChange={handleExplorerTabChange}
+        chatPanelOpen={chatPanelOpen}
+        chatPanelWidth={gridChatWidth}
+        fullscreenPane={fullscreenPane}
+        onChatPanelOpenChange={handleChatPanelOpenChange}
+        documentTabs={documentTabs.tabs}
+        activeDocumentPath={documentTabs.activePath}
+        onSelectDocument={(path) => void documentTabs.openFile(path)}
+        onCloseDocument={documentTabs.handleCloseTab}
+        chatSessions={chatSessions.chatSessionsForSwitcher}
+        activeChatId={chatSessions.chatSessionId}
+        onSelectChat={chatSessions.handleSelectChatTab}
+        onNewChat={chatSessions.handleNewChat}
+        chatHistorySessions={chatSessions.chatHistoryForSwitcher}
+        onSelectChatHistorySession={chatSessions.handleSelectHistorySession}
+        agentModelLabel={activeModelLabel}
+        activeProject={activeProject}
+        recentProjects={recentProjects}
+        linkedFolderIds={linkedFolderIds}
+        onSelectProject={handleSelectProject}
+        onOpenFolder={() => void handleOpenFolder()}
+        settingsActive={isSettingsTab}
+        onSettingsBack={handleSettingsBack}
+      />
+
+      <div
+        className={cn(shell.workbenchGrid, isFullscreen && "grid-cols-1")}
+        style={{
+          gridTemplateColumns: isFullscreen
+            ? "1fr"
+            : workbenchGridTemplateColumns(
+                gridExplorerWidth,
+                gridChatWidth
+              ),
+        }}
+      >
+        {isFullscreen ? (
+          <>
+            {fullscreenPane === "explorer" ? (
+              <ExplorerPanel {...explorerPanelProps} />
+            ) : null}
+            {fullscreenPane === "chat" ? (
+              <ChatPanel {...chatPanelProps} />
+            ) : null}
+          </>
+        ) : (
+          <>
+            {gridExplorerWidth > 0 ? (
+              <ExplorerPanel {...explorerPanelProps} />
+            ) : (
+              <div className="min-h-0 min-w-0" aria-hidden />
+            )}
+
+            <DocumentPanel
+              ref={documentEditorRef}
+              activePath={documentTabs.activePath}
+              documentContent={documentTabs.documentContent}
+              documentLoading={documentTabs.documentLoading}
+              settingsSection={settingsSection}
+              settingsStartAddModel={settingsStartAddModel}
+              onSettingsStartAddModelHandled={handleSettingsStartAddModelHandled}
+              settingsConfig={settings.config}
+              settingsTools={settings.tools}
+              settingsPlugins={settings.plugins}
+              onMarkdownChange={documentTabs.handleMarkdownChange}
+              onSelectionChange={setEditorSelection}
+              onTocUpdate={documentTabs.setTocEntries}
+              onOpenFile={handleOpenFile}
+              onAddModel={settings.addModel}
+              onUpdateModel={settings.updateModel}
+              onRemoveModel={settings.removeModel}
+              onSetToolEnabled={settings.setToolEnabled}
+            />
+
+            {gridChatWidth > 0 ? (
+              <ChatPanel {...chatPanelProps} />
+            ) : (
+              <div className="min-h-0 min-w-0" aria-hidden />
+            )}
+          </>
+        )}
+      </div>
+
+      {!isFullscreen && gridExplorerWidth > 0 ? (
+        <PanelResizeHandle
+          edge="end"
+          span="viewport"
+          style={{ left: Math.max(0, gridExplorerWidth - 4) }}
+          onPointerDown={explorerPanel.onPointerDown}
+        />
+      ) : null}
+      {!isFullscreen && gridChatWidth > 0 ? (
+        <PanelResizeHandle
+          edge="start"
+          span="viewport"
+          style={{ left: `calc(100% - ${gridChatWidth}px)` }}
+          onPointerDown={chatPanel.onPointerDown}
+        />
+      ) : null}
+    </div>
+  )
 }
-
-

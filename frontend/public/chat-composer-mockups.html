@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat Composer — Frame 原型选型</title>
+  <style>
+    @font-face {
+      font-family: "MiSans VF";
+      src: url("/fonts/MiSansVF.woff2") format("woff2-variations"), url("/fonts/MiSansVF.woff2") format("woff2");
+      font-weight: 150 700;
+      font-style: normal;
+      font-display: swap;
+    }
+    :root {
+      --background: #ffffff;
+      --foreground: #0a0a0a;
+      --muted: #f4f4f5;
+      --muted-foreground: #71717a;
+      --border: #e4e4e7;
+      --card: #ffffff;
+      --card-foreground: #0a0a0a;
+      --primary: #18181b;
+      --primary-foreground: #fafafa;
+      --accent: #f4f4f5;
+      --accent-foreground: #18181b;
+      --input: #e4e4e7;
+      --ring: #a1a1aa;
+      --font-sans: "Cal Sans UI", "MiSans VF", ui-sans-serif, system-ui, sans-serif;
+      --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+      --radius-lg: 10px;
+      --radius-xl: 14px;
+      --radius-2xl: 18px;
+      --content-reading-max: 52rem;
+      --content-inset-box: 16px;
+      --frame-muted: color-mix(in oklab, var(--muted) 72%, transparent);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: #09090b;
+        --foreground: #fafafa;
+        --muted: #27272a;
+        --muted-foreground: #a1a1aa;
+        --border: #27272a;
+        --card: #18181b;
+        --card-foreground: #fafafa;
+        --primary: #fafafa;
+        --primary-foreground: #18181b;
+        --accent: #27272a;
+        --accent-foreground: #fafafa;
+        --input: #27272a;
+        --ring: #52525b;
+        --frame-muted: color-mix(in oklab, var(--muted) 72%, transparent);
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: var(--font-sans);
+      color: var(--foreground);
+      background: var(--background);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    /* ── Page chrome ── */
+    .page-header {
+      border-bottom: 1px solid var(--border);
+      padding: 24px 32px;
+      position: sticky; top: 0; z-index: 100;
+      background: color-mix(in oklab, var(--background) 92%, transparent);
+      backdrop-filter: blur(8px);
+    }
+    .page-header h1 { font-size: 20px; font-weight: 600; }
+    .page-header p { font-size: 13px; color: var(--muted-foreground); margin-top: 4px; max-width: 80ch; }
+
+    .scheme-tabs {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      padding: 16px 32px;
+      border-bottom: 1px solid var(--border);
+      background: var(--muted);
+    }
+    .scheme-tab {
+      padding: 8px 14px; border-radius: var(--radius-lg);
+      border: 1px solid var(--border); background: var(--background);
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .scheme-tab:hover { border-color: var(--ring); }
+    .scheme-tab.active {
+      background: var(--primary); color: var(--primary-foreground);
+      border-color: var(--primary);
+    }
+    .scheme-tab .badge {
+      display: inline-block; margin-left: 6px;
+      font-size: 10px; font-weight: 600; opacity: .7;
+    }
+
+    .scheme-panel { display: none; }
+    .scheme-panel.active { display: block; }
+
+    .scheme-meta {
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--border);
+      display: grid; gap: 12px;
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+    @media (max-width: 960px) { .scheme-meta { grid-template-columns: 1fr; } }
+    .meta-card {
+      padding: 14px 16px; border-radius: var(--radius-lg);
+      border: 1px solid var(--border); background: var(--card);
+    }
+    .meta-card h3 {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .04em; color: var(--muted-foreground); margin-bottom: 6px;
+    }
+    .meta-card p, .meta-card ul { font-size: 13px; }
+    .meta-card ul { padding-left: 18px; color: var(--muted-foreground); }
+    .meta-card li { margin: 2px 0; }
+
+    /* ── Mock chat shell ── */
+    .mock-shell {
+      margin: 24px 32px 48px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      height: 560px;
+      display: grid;
+      grid-template-rows: 40px 1fr auto;
+      background: var(--background);
+      box-shadow: 0 1px 3px color-mix(in oklab, var(--foreground) 6%, transparent);
+    }
+    .mock-topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 12px; border-bottom: 1px solid var(--border);
+      background: var(--background); font-size: 13px;
+    }
+    .mock-topbar .title { font-weight: 500; }
+    .mock-topbar .status { font-size: 12px; color: var(--muted-foreground); }
+
+    .mock-chat {
+      display: flex; flex-direction: column;
+      min-height: 0; overflow: hidden;
+      background: var(--background);
+    }
+    .mock-messages {
+      flex: 1; overflow-y: auto;
+      padding: 20px 0;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .reading-col {
+      max-width: min(100%, var(--content-reading-max));
+      margin: 0 auto; width: 100%;
+      padding: 0 var(--content-inset-box);
+    }
+    .lane {
+      margin: 0 var(--content-inset-box);
+      width: calc(100% - 2 * var(--content-inset-box));
+      max-width: calc(100% - 2 * var(--content-inset-box));
+    }
+
+    .msg-user {
+      margin-left: auto; max-width: 85%;
+      padding: 10px 14px;
+      border: 1px solid var(--input);
+      border-radius: var(--radius-2xl);
+      background: var(--card);
+      font-size: 14px; line-height: 1.45;
+      box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 4%, transparent);
+    }
+    .msg-assistant {
+      font-size: 14px; color: var(--foreground); line-height: 1.6;
+      padding: 0 4px;
+    }
+    .msg-assistant .muted { color: var(--muted-foreground); font-size: 13px; }
+
+    .composer-zone {
+      flex-shrink: 0;
+      padding-bottom: 12px;
+    }
+
+    /* ── Shared composer primitives ── */
+    .composer-textarea {
+      width: 100%; min-height: 52px; max-height: 120px;
+      border: none; outline: none; resize: none;
+      background: transparent;
+      font-family: var(--font-sans); font-size: 14px; line-height: 1.5;
+      color: var(--foreground);
+    }
+    .composer-textarea::placeholder { color: var(--muted-foreground); }
+
+    .chip-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 28px; padding: 0 10px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--input);
+      background: var(--background);
+      font-size: 13px; font-weight: 400;
+      color: var(--foreground); cursor: pointer;
+      white-space: nowrap;
+    }
+    .chip-btn:hover { background: var(--accent); }
+    .chip-btn svg { width: 14px; height: 14px; opacity: .7; flex-shrink: 0; }
+    .chip-btn .truncate { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
+
+    .send-btn {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: none; background: var(--primary); color: var(--primary-foreground);
+      display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0;
+    }
+    .send-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .send-btn svg { width: 16px; height: 16px; }
+
+    .mode-pills {
+      display: inline-flex; align-items: center;
+      border: 1px solid var(--input); border-radius: var(--radius-lg);
+      overflow: hidden; background: var(--background);
+    }
+    .mode-pill {
+      padding: 4px 10px; font-size: 12px; font-weight: 500;
+      border: none; background: transparent; cursor: pointer;
+      color: var(--muted-foreground);
+    }
+    .mode-pill.active {
+      background: var(--accent); color: var(--foreground);
+    }
+    .mode-pill + .mode-pill { border-left: 1px solid var(--input); }
+
+    /* COSS Frame — mirrors ui/frame.tsx */
+    .frame {
+      position: relative;
+      display: flex; flex-direction: column;
+      border-radius: var(--radius-2xl);
+      background: var(--frame-muted);
+      padding: 4px;
+    }
+    .frame-panel {
+      position: relative;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border);
+      background: var(--background);
+      background-clip: padding-box;
+      box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 4%, transparent);
+    }
+    .frame-panel + .frame-panel { margin-top: 4px; }
+
+    .frame-footer-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; padding: 8px 12px;
+    }
+    .frame-footer-left, .frame-footer-right {
+      display: flex; align-items: center; gap: 8px; min-width: 0;
+    }
+
+    /* ── Variant: Current baseline ── */
+    .v-current .prompt-card {
+      border: 1px solid var(--input);
+      border-radius: var(--radius-2xl);
+      background: var(--card);
+      box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 4%, transparent);
+      overflow: hidden;
+    }
+    .v-current .prompt-body { padding: 14px 18px 4px; }
+    .v-current .prompt-actions {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 12px 12px;
+    }
+
+    /* ── Variant A: Cursor 双层 ── */
+    .v-a .composer-stack { display: flex; flex-direction: column; gap: 0; }
+    .v-a .input-surface {
+      border: 1px solid var(--input);
+      border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+      background: var(--card);
+      padding: 14px 18px 8px;
+      box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 4%, transparent);
+    }
+    .v-a .input-surface .inline-actions {
+      display: flex; align-items: center; gap: 8px; margin-top: 8px;
+    }
+    .v-a .frame { border-radius: 0 0 var(--radius-2xl) var(--radius-2xl); margin-top: -1px; }
+    .v-a .frame .frame-panel { border-radius: 0 0 calc(var(--radius-xl) - 2px) calc(var(--radius-xl) - 2px); border-top: none; }
+
+    /* ── Variant B: Compose 极简 ── */
+    .v-b .frame { max-width: 100%; }
+    .v-b .input-panel {
+      min-height: 140px;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .v-b .compose-hint {
+      padding: 6px 14px;
+      border: 1px solid var(--input);
+      border-radius: 999px;
+      font-size: 14px; color: var(--muted-foreground);
+      background: var(--background);
+    }
+    .v-b .footer-panel { border-top: 1px solid var(--border); }
+
+    /* ── Variant C: COSS 双 Panel ── */
+    .v-c .input-panel { padding: 14px 16px 8px; }
+    .v-c .toolbar-panel { padding: 0; }
+
+    /* ── Variant D: 分离式 ── */
+    .v-d .composer-stack { display: flex; flex-direction: column; gap: 8px; }
+    .v-d .input-card {
+      border: 1px solid var(--input);
+      border-radius: var(--radius-2xl);
+      background: var(--card);
+      padding: 14px 18px;
+      box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 4%, transparent);
+    }
+
+    /* ── Variant E: 单 Panel 内分割 ── */
+    .v-e .frame-panel { padding: 0; overflow: hidden; }
+    .v-e .input-zone { padding: 14px 16px 8px; }
+    .v-e .inner-divider { height: 1px; background: var(--border); }
+    .v-e .toolbar-zone { padding: 8px 12px; background: color-mix(in oklab, var(--muted) 40%, var(--background)); }
+
+    /* ── Variant F: 紧凑 ── */
+    .v-f .input-panel { padding: 10px 12px 6px; }
+    .v-f .composer-textarea { min-height: 36px; font-size: 13px; }
+    .v-f .frame-footer-bar { padding: 6px 10px; }
+    .v-f .chip-btn { height: 26px; font-size: 12px; padding: 0 8px; }
+    .v-f .send-btn { width: 28px; height: 28px; }
+
+    /* Suggestions below composer */
+    .suggestions {
+      margin-top: 10px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .suggestion {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px; border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      font-size: 13px; color: var(--muted-foreground);
+      cursor: pointer; background: transparent;
+      text-align: left;
+    }
+    .suggestion:hover { background: var(--accent); color: var(--foreground); }
+    .suggestion svg { width: 14px; height: 14px; flex-shrink: 0; opacity: .6; }
+
+    .ref-tag {
+      display: inline-block; margin-top: 8px;
+      font-size: 11px; color: var(--muted-foreground);
+      padding: 2px 8px; border-radius: 999px;
+      background: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header class="page-header">
+    <h1>Chat Composer — Frame 原型选型</h1>
+    <p>
+      上方为输入区，下方为 coss <code>Frame</code> 工具条（选模型 · 选模式 · 发送）。
+      在迷你 Chat 壳层中预览各方案，选定后再迁入 <code>chat-thread.tsx</code>。
+    </p>
+  </header>
+
+  <nav class="scheme-tabs" id="tabs"></nav>
+
+  <div id="panels"></div>
+
+  <script>
+    const ICONS = {
+      key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M7 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M10 11v2a2 2 0 0 0 2 2h1"/><path d="M13 15v3M11 17h4"/></svg>',
+      chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="m6 9 6 6 6-6"/></svg>',
+      send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 7-7v4h7v6h-7v4Z"/></svg>',
+      spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>',
+      plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 5v14M5 12h14"/></svg>',
+      at: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>',
+      chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2Z"/></svg>',
+      pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+    };
+
+    function modelChip() {
+      return `<button type="button" class="chip-btn" title="切换模型">
+        ${ICONS.key}<span class="truncate">mimo-v2.5</span>${ICONS.chev}
+      </button>`;
+    }
+
+    function modePills(active = "ask") {
+      const modes = [
+        { id: "ask", label: "Ask" },
+        { id: "agent", label: "Agent" },
+        { id: "edit", label: "Edit" },
+      ];
+      return `<div class="mode-pills" role="group" aria-label="模式">
+        ${modes.map(m => `<button type="button" class="mode-pill${m.id === active ? " active" : ""}">${m.label}</button>`).join("")}
+      </div>`;
+    }
+
+    function modeChip(label = "Ask") {
+      return `<button type="button" class="chip-btn">${ICONS.spark}<span>${label}</span>${ICONS.chev}</button>`;
+    }
+
+    function sendBtn(disabled = false) {
+      return `<button type="button" class="send-btn" aria-label="发送"${disabled ? " disabled" : ""}>${ICONS.send}</button>`;
+    }
+
+    function toolbar(left, right) {
+      return `<div class="frame-footer-bar">
+        <div class="frame-footer-left">${left}</div>
+        <div class="frame-footer-right">${right}</div>
+      </div>`;
+    }
+
+    function textarea(placeholder = "Ask about your writing...", value = "") {
+      return `<textarea class="composer-textarea" rows="2" placeholder="${placeholder}">${value}</textarea>`;
+    }
+
+    function suggestions() {
+      const items = [
+        "What files are in this project?",
+        "Summarize the open draft",
+        "Improve introduction clarity",
+      ];
+      return `<div class="suggestions lane">
+        ${items.map(t => `<button type="button" class="suggestion">${ICONS.chat}<span>${t}</span></button>`).join("")}
+      </div>`;
+    }
+
+    function mockShell(variantClass, composerHtml, showSuggestions = true) {
+      return `
+        <div class="mock-shell">
+          <div class="mock-topbar">
+            <span class="title">Chat</span>
+            <span class="status">Agent connected · introduction.md</span>
+          </div>
+          <div class="mock-chat">
+            <div class="mock-messages">
+              <div class="reading-col">
+                <div class="msg-assistant">
+                  <p>Welcome. I can help you read project files, summarize drafts, and improve clarity.</p>
+                  <p class="muted" style="margin-top:8px">Open a markdown file from the sidebar to add context.</p>
+                </div>
+              </div>
+              <div class="reading-col">
+                <div class="msg-user">Read introduction.md and suggest a stronger opening.</div>
+              </div>
+            </div>
+            <div class="composer-zone">
+              <div class="reading-col">
+                <div class="lane ${variantClass}">
+                  ${composerHtml}
+                </div>
+                ${showSuggestions ? suggestions() : ""}
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    const schemes = [
+      {
+        id: "current",
+        label: "现状",
+        badge: "baseline",
+        ref: "当前 chat-thread · Nexus PromptInput",
+        idea: "输入与操作在同一圆角卡片内，模型选择与发送同处底栏。",
+        pros: ["已实现、交互熟悉", "单容器，结构简单"],
+        cons: ["模型/模式/发送挤在一行", "与 Cursor 式分层不明显"],
+        html: mockShell("v-current", `
+          <div class="prompt-card">
+            <div class="prompt-body">${textarea()}</div>
+            <div class="prompt-actions">
+              ${modelChip()}
+              ${sendBtn()}
+            </div>
+          </div>
+        `),
+      },
+      {
+        id: "a",
+        label: "A · Cursor 双层",
+        badge: "ref",
+        ref: "参考 Cursor 主输入 + 底栏 context",
+        idea: "上方白色输入面，下方 muted Frame 承载模型、模式、发送；视觉分层清晰。",
+        pros: ["最接近参考图", "工具条与正文输入解耦", "可扩展 context pills"],
+        cons: ["纵向略高", "上下圆角需对齐"],
+        html: mockShell("v-a", `
+          <div class="composer-stack">
+            <div class="input-surface">
+              ${textarea("Do anything…")}
+              <div class="inline-actions">
+                <button type="button" class="chip-btn" style="width:28px;padding:0;justify-content:center">${ICONS.plus}</button>
+                <button type="button" class="chip-btn">${ICONS.at}<span>Attach context</span></button>
+              </div>
+            </div>
+            <div class="frame">
+              <div class="frame-panel">
+                ${toolbar(modelChip() + modeChip("Ask"), sendBtn())}
+              </div>
+            </div>
+          </div>
+          <span class="ref-tag">底栏可再加 project / file context pills</span>
+        `),
+      },
+      {
+        id: "b",
+        label: "B · Compose 极简",
+        badge: "ref",
+        ref: "参考 coss Compose 大留白 + 细 footer",
+        idea: "Frame 内上大下小：中央 Compose 提示，footer 仅保留核心三控件。",
+        pros: ["空态优雅", "强调「开始写作」", "footer 信息密度低"],
+        cons: ["有文字后大留白浪费", "模式切换不如 pills 直观"],
+        html: mockShell("v-b", `
+          <div class="frame">
+            <div class="frame-panel input-panel">
+              <div class="compose-hint">Compose<span style="opacity:.5">|</span></div>
+            </div>
+            <div class="frame-panel footer-panel">
+              ${toolbar(
+                '<span class="text-muted" style="font-size:12px;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Writing agent</span>',
+                modelChip() + modeChip("Ask") + sendBtn(true)
+              )}
+            </div>
+          </div>
+        `, false),
+      },
+      {
+        id: "c",
+        label: "C · COSS 双 Panel",
+        badge: "coss",
+        ref: "p-frame-4 · 上下堆叠 FramePanel",
+        idea: "严格遵循 Frame 语义：上 Panel 输入，下 Panel 工具条，中间 4px muted 间隙。",
+        pros: ["与 design system 一致", "后续易拆成独立组件", "暗色模式边框自然"],
+        cons: ["双层边框略重", "比单卡片占高"],
+        html: mockShell("v-c", `
+          <div class="frame">
+            <div class="frame-panel input-panel">
+              ${textarea()}
+            </div>
+            <div class="frame-panel toolbar-panel">
+              ${toolbar(modelChip() + modePills("ask"), sendBtn())}
+            </div>
+          </div>
+        `),
+      },
+      {
+        id: "d",
+        label: "D · 分离式",
+        badge: "alt",
+        ref: "输入卡片 + 独立 Frame 条",
+        idea: "输入区保持现有 chatComposerChrome 卡片；下方 8px 间距后接独立 Frame 工具条。",
+        pros: ["迁移成本最低", "输入样式可不动", "工具条可复用到别处的 composer"],
+        cons: ["两块视觉分离", "不如一体式紧凑"],
+        html: mockShell("v-d", `
+          <div class="composer-stack">
+            <div class="input-card">${textarea()}</div>
+            <div class="frame">
+              <div class="frame-panel">
+                ${toolbar(modelChip() + modePills("agent"), sendBtn())}
+              </div>
+            </div>
+          </div>
+        `),
+      },
+      {
+        id: "e",
+        label: "E · 单 Panel 内分割",
+        badge: "compact",
+        ref: "一个 FramePanel · 内部分割线",
+        idea: "外层仅一个 Frame + Panel，内部 textarea 与 muted 工具区用分割线隔开。",
+        pros: ["外轮廓最干净", "高度适中", "工具区可略染色区分"],
+        cons: ["Frame 语义略混（单 panel 多区）", "内部分割不如双 panel 标准"],
+        html: mockShell("v-e", `
+          <div class="frame">
+            <div class="frame-panel">
+              <div class="input-zone">${textarea("Ask about your writing…", "Improve the hook in paragraph 1…")}</div>
+              <div class="inner-divider"></div>
+              <div class="toolbar-zone">
+                ${toolbar(modelChip() + modePills("edit"), sendBtn())}
+              </div>
+            </div>
+          </div>
+        `),
+      },
+      {
+        id: "f",
+        label: "F · 紧凑工具条",
+        badge: "dense",
+        ref: "矮输入 + 单行 Frame",
+        idea: "输入最小化，Frame footer 单行收纳模型下拉、模式 chip、发送；适合侧栏窄宽。",
+        pros: ["纵向最省", "侧栏友好", "信息仍完整"],
+        cons: ["长模型名易截断", "触控目标偏小"],
+        html: mockShell("v-f", `
+          <div class="frame">
+            <div class="frame-panel input-panel">
+              ${textarea("Message…")}
+            </div>
+            <div class="frame-panel toolbar-panel">
+              ${toolbar(
+                modelChip() + '<button type="button" class="chip-btn" style="font-size:12px">Agent</button>',
+                sendBtn()
+              )}
+            </div>
+          </div>
+        `),
+      },
+    ];
+
+    const tabsEl = document.getElementById("tabs");
+    const panelsEl = document.getElementById("panels");
+
+    schemes.forEach((s, i) => {
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = "scheme-tab" + (i === 0 ? " active" : "");
+      tab.dataset.target = s.id;
+      tab.innerHTML = `${s.label}<span class="badge">${s.badge}</span>`;
+      tab.addEventListener("click", () => activate(s.id));
+      tabsEl.appendChild(tab);
+
+      const panel = document.createElement("section");
+      panel.className = "scheme-panel" + (i === 0 ? " active" : "");
+      panel.id = "panel-" + s.id;
+      panel.innerHTML = `
+        <div class="scheme-meta">
+          <div class="meta-card">
+            <h3>设计意图</h3>
+            <p>${s.idea}</p>
+            <p class="ref-tag" style="margin-top:10px">${s.ref}</p>
+          </div>
+          <div class="meta-card">
+            <h3>优点</h3>
+            <ul>${s.pros.map(p => `<li>${p}</li>`).join("")}</ul>
+          </div>
+          <div class="meta-card">
+            <h3>注意</h3>
+            <ul>${s.cons.map(c => `<li>${c}</li>`).join("")}</ul>
+          </div>
+        </div>
+        ${s.html}
+      `;
+      panelsEl.appendChild(panel);
+    });
+
+    function activate(id) {
+      document.querySelectorAll(".scheme-tab").forEach(t => {
+        t.classList.toggle("active", t.dataset.target === id);
+      });
+      document.querySelectorAll(".scheme-panel").forEach(p => {
+        p.classList.toggle("active", p.id === "panel-" + id);
+      });
+    }
+
+    // Mode pill toggle (visual only)
+    document.addEventListener("click", (e) => {
+      const pill = e.target.closest(".mode-pill");
+      if (!pill) return;
+      const group = pill.closest(".mode-pills");
+      group.querySelectorAll(".mode-pill").forEach(p => p.classList.remove("active"));
+      pill.classList.add("active");
+    });
+  </script>
+</body>
+</html>

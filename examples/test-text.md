@@ -1,13 +1,13 @@
-1 Introduction
+# Introduction
 
 Tropospheric parameters are essential for meteorological and space
 geodetic applications (Mendes et al., 2002; Foster et al., 2006; Vieira
-et al., 2022; Lu et al., 2017; Landskron & Böhm, 2018). Numerical
+et al., 2022; Lu et al., 2017; Landskron &amp; Böhm, 2018). Numerical
 weather models (NWMs) have become a primary source for deriving these
 parameters owing to their global coverage and high spatiotemporal
 resolution (Bauer et al., 2015). However, NWM-derived parameters carry
 inherent uncertainty due to imperfect observations and models
-(Leutbecher & Palmer, 2008). Moreover, this uncertainty is
+(Leutbecher &amp; Palmer, 2008). Moreover, this uncertainty is
 flow-dependent, varying substantially with the prevailing atmospheric
 state (Judt, 2018; Zhang et al., 2003). Reliable quantification of such
 flow-dependent uncertainty is therefore necessary for downstream
@@ -31,7 +31,7 @@ et al., 2020) and increases markedly during extreme weather events such
 as storms (Yu et al., 2021).
 
 In the meteorological field, ensemble methods have been developed to
-quantify this flow-dependent uncertainty (Leutbecher & Palmer, 2008).
+quantify this flow-dependent uncertainty (Leutbecher &amp; Palmer, 2008).
 The Ensemble of Data Assimilations (EDA) is specifically designed to
 quantify uncertainty in analysis fields (Isaksen et al., 2010). It
 generates an ensemble of analyses, each subjected to perturbations that

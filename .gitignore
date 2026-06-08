@@ -1,8 +1,13 @@
 .env
+models.yaml
+.writing-agent/
 .venv/
 __pycache__/
 *.py[cod]
 node_modules/
 frontend/dist/
+frontend/.vite-cache/
+agent/.pytest_cache/
 agent/data/
+.tmp-*.log
 .DS_Store

@@ -1,117 +1,13 @@
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-} from "@/components/ui/sidebar"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { shell, shellSidebarRowClass, spacing } from "@/lib/shell-chrome"
+import { useEffect, useMemo, useState } from "react"
+
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs"
 import type { DocumentTocEntry } from "@/lib/document-toc"
+import { shell, shellNavIndent } from "@/lib/shell-chrome"
 import { cn } from "@/lib/utils"
 
-/* ──────── Tree types ──────── */
-
-interface TocNode {
-  entry: DocumentTocEntry
-  children: TocNode[]
-}
-
-/* ──────── Build tree from flat entries ──────── */
-
-function buildTocTree(entries: DocumentTocEntry[]): TocNode[] {
-  const root: TocNode[] = []
-  const stack: TocNode[] = []
-
-  for (const entry of entries) {
-    const node: TocNode = { entry, children: [] }
-
-    while (stack.length > 0 && stack[stack.length - 1].entry.level >= entry.level) {
-      stack.pop()
-    }
-
-    if (stack.length === 0) {
-      root.push(node)
-    } else {
-      stack[stack.length - 1].children.push(node)
-    }
-
-    stack.push(node)
-  }
-
-  return root
-}
-
-/* ──────── Tree node renderer ──────── */
-
-function OutlineNode({
-  node,
-  depth,
-  onNavigate,
-}: {
-  node: TocNode
-  depth: number
-  onNavigate: (id: string) => void
-}) {
-  const isActive = node.entry.isActive ?? false
-  const hasChildren = node.children.length > 0
-
-  if (depth === 0) {
-    return (
-      <SidebarMenuItem>
-        <SidebarMenuButton
-          size="sm"
-          isActive={isActive}
-          className={shellSidebarRowClass({ active: isActive })}
-          onClick={() => onNavigate(node.entry.id)}
-        >
-          <span className="min-w-0 truncate">{node.entry.title}</span>
-        </SidebarMenuButton>
-        {hasChildren ? (
-          <SidebarMenuSub className={spacing.tight}>
-            {node.children.map((child) => (
-              <OutlineNode
-                key={child.entry.id}
-                node={child}
-                depth={1}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </SidebarMenuSub>
-        ) : null}
-      </SidebarMenuItem>
-    )
-  }
-
-  return (
-    <SidebarMenuSubItem>
-      <SidebarMenuSubButton
-        size="sm"
-        isActive={isActive}
-        className={shellSidebarRowClass({ active: isActive })}
-        onClick={() => onNavigate(node.entry.id)}
-      >
-        <span className="min-w-0 truncate">{node.entry.title}</span>
-      </SidebarMenuSubButton>
-      {hasChildren ? (
-        <SidebarMenuSub className={spacing.tight}>
-          {node.children.map((child) => (
-            <OutlineNode
-              key={child.entry.id}
-              node={child}
-              depth={depth + 1}
-              onNavigate={onNavigate}
-            />
-          ))}
-        </SidebarMenuSub>
-      ) : null}
-    </SidebarMenuSubItem>
-  )
-}
-
-/* ──────── Main component ──────── */
-
+/**
+ * 文档大纲：p-tabs-4 竖向 underline；点击跳转 + 层级缩进/字重。
+ */
 export function ExplorerOutline({
   entries,
   onNavigate,
@@ -119,6 +15,29 @@ export function ExplorerOutline({
   entries: DocumentTocEntry[]
   onNavigate: (id: string) => void
 }) {
+  const [pendingId, setPendingId] = useState<string | null>(null)
+
+  const activeId = useMemo(() => {
+    if (pendingId && entries.some((e) => e.id === pendingId)) {
+      return pendingId
+    }
+    const current = entries.find((e) => e.isActive)
+    const candidate = current?.id ?? entries[0]?.id ?? ""
+    return entries.some((e) => e.id === candidate) ? candidate : (entries[0]?.id ?? "")
+  }, [entries, pendingId])
+
+  useEffect(() => {
+    const current = entries.find((e) => e.isActive)
+    if (current && current.id === pendingId) {
+      setPendingId(null)
+    }
+  }, [entries, pendingId])
+
+  const handleNavigate = (id: string) => {
+    setPendingId(id)
+    onNavigate(id)
+  }
+
   if (entries.length === 0) {
     return (
       <p className={cn(shell.panelBody, shell.textMuted)}>
@@ -128,20 +47,52 @@ export function ExplorerOutline({
     )
   }
 
-  const tree = buildTocTree(entries)
+  if (!activeId) {
+    return (
+      <p className={cn(shell.panelBody, shell.textMuted)}>
+        Outline is not ready yet. Open a markdown file with headings.
+      </p>
+    )
+  }
 
   return (
-    <ScrollArea className="min-h-0 flex-1" scrollFade scrollbarGutter>
-      <SidebarMenu className={shell.listMenu}>
-        {tree.map((node) => (
-          <OutlineNode
-            key={node.entry.id}
-            node={node}
-            depth={0}
-            onNavigate={onNavigate}
-          />
+    <div
+      className={cn(
+        shell.panelBody,
+        "min-w-0 max-w-full overflow-hidden pb-3",
+      )}
+    >
+      <Tabs
+        orientation="vertical"
+        className={shell.outlineTabs}
+        value={activeId}
+        onValueChange={(id) => {
+          if (id) handleNavigate(id)
+        }}
+      >
+        <div className={shell.outlineTabsRail}>
+          <TabsList variant="underline" className={shell.outlineTabsList}>
+            {entries.map((entry) => (
+              <TabsTab
+                key={entry.id}
+                value={entry.id}
+                className={shell.outlineTab}
+                style={{ paddingLeft: shellNavIndent(entry.level) }}
+                onClick={() => handleNavigate(entry.id)}
+              >
+                <span className="min-w-0 flex-1 whitespace-normal break-words text-start leading-5">
+                  {entry.title}
+                </span>
+              </TabsTab>
+            ))}
+          </TabsList>
+        </div>
+        {entries.map((entry) => (
+          <TabsPanel key={entry.id} value={entry.id} hidden>
+            {entry.title}
+          </TabsPanel>
         ))}
-      </SidebarMenu>
-    </ScrollArea>
+      </Tabs>
+    </div>
   )
 }

@@ -1,12 +1,20 @@
 import {
   buildTreeFromDirectoryHandle,
+  createFolderInDirectoryHandle,
+  relativeFolderPathForFile,
+  renameFileInDirectoryHandle,
   readFileFromDirectoryHandle,
   writeFileToDirectoryHandle,
 } from "@/lib/local-workspace"
+import { pathDirname } from "@/lib/path"
 import type { WorkspaceFileNode } from "@/lib/workspace-api"
 import {
+  createWorkspaceFolder,
+  fetchWorkspaceFileFolderPath,
   fetchWorkspaceTree,
+  openWorkspaceFileFolder,
   readWorkspaceFile,
+  renameWorkspaceFile,
   writeWorkspaceFile,
 } from "@/lib/workspace-api"
 
@@ -18,6 +26,10 @@ export interface WorkspaceClient {
   listTree(): Promise<WorkspaceFileNode[]>
   readFile(path: string): Promise<string>
   writeFile(path: string, content: string): Promise<void>
+  createFolder(path: string): Promise<void>
+  renameFile(path: string, newPath: string): Promise<void>
+  getFileFolderPath(path: string): Promise<string>
+  openFileFolder(path: string): Promise<void>
 }
 
 export function createProjectWorkspaceClient(): WorkspaceClient {
@@ -27,11 +39,15 @@ export function createProjectWorkspaceClient(): WorkspaceClient {
     listTree: fetchWorkspaceTree,
     readFile: readWorkspaceFile,
     writeFile: writeWorkspaceFile,
+    createFolder: createWorkspaceFolder,
+    renameFile: renameWorkspaceFile,
+    getFileFolderPath: fetchWorkspaceFileFolderPath,
+    openFileFolder: openWorkspaceFileFolder,
   }
 }
 
 export function createFolderWorkspaceClient(
-  handle: FileSystemDirectoryHandle,
+  handle: FileSystemDirectoryHandle
 ): WorkspaceClient {
   return {
     id: "folder",
@@ -40,25 +56,31 @@ export function createFolderWorkspaceClient(
     readFile: (path) => readFileFromDirectoryHandle(handle, path),
     writeFile: (path, content) =>
       writeFileToDirectoryHandle(handle, path, content),
+    createFolder: (path) => createFolderInDirectoryHandle(handle, path),
+    renameFile: (path, newPath) =>
+      renameFileInDirectoryHandle(handle, path, newPath),
+    getFileFolderPath: (path) =>
+      Promise.resolve(relativeFolderPathForFile(path) || pathDirname(path)),
+    openFileFolder: () => {
+      throw new Error(
+        "Opening folder paths is only available for the project workspace"
+      )
+    },
   }
 }
 
 /** 去掉 API / 本地句柄包装的单一根文件夹，避免与顶栏工作区名称重复一层 */
 export function flattenWorkspaceTreeRoots(
-  tree: WorkspaceFileNode[],
+  tree: WorkspaceFileNode[]
 ): WorkspaceFileNode[] {
-  if (
-    tree.length === 1 &&
-    tree[0].type === "folder" &&
-    tree[0].path === ""
-  ) {
+  if (tree.length === 1 && tree[0].type === "folder" && tree[0].path === "") {
     return tree[0].children ?? []
   }
   return tree
 }
 
 export function findFirstMarkdownPath(
-  nodes: WorkspaceFileNode[],
+  nodes: WorkspaceFileNode[]
 ): string | null {
   for (const node of nodes) {
     if (node.type === "file" && node.path.endsWith(".md")) {

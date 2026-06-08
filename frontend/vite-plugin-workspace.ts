@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 import type { IncomingMessage, ServerResponse } from "node:http"
@@ -58,10 +59,26 @@ function sendJson(res: ServerResponse, status: number, data: unknown) {
   res.end(JSON.stringify(data))
 }
 
+function openFolder(folderPath: string): Promise<void> {
+  const command =
+    process.platform === "win32"
+      ? "explorer.exe"
+      : process.platform === "darwin"
+        ? "open"
+        : "xdg-open"
+
+  return new Promise((resolve, reject) => {
+    execFile(command, [folderPath], (err) => {
+      if (err) reject(err)
+      else resolve()
+    })
+  })
+}
+
 function buildTree(
   root: string,
   dir: string,
-  relativeDir: string,
+  relativeDir: string
 ): WorkspaceFileNode[] {
   const entries = fs.readdirSync(dir, { withFileTypes: true })
   const nodes: WorkspaceFileNode[] = []
@@ -75,7 +92,6 @@ function buildTree(
     if (entry.isDirectory()) {
       if (SKIP_DIR_NAMES.has(entry.name)) continue
       const children = buildTree(root, abs, rel)
-      if (children.length === 0) continue
       nodes.push({
         name: entry.name,
         path: rel,
@@ -130,7 +146,10 @@ export function workspaceApiPlugin(): Plugin {
           const pathname = url.pathname
 
           if (pathname === "/api/workspace/tree" && req.method === "GET") {
-            sendJson(res, 200, { root: workspaceRoot, tree: workspaceTree(workspaceRoot) })
+            sendJson(res, 200, {
+              root: workspaceRoot,
+              tree: workspaceTree(workspaceRoot),
+            })
             return
           }
 
@@ -151,7 +170,10 @@ export function workspaceApiPlugin(): Plugin {
           }
 
           if (pathname === "/api/workspace/file" && req.method === "PUT") {
-            const body = await readJsonBody<{ path?: string; content?: string }>(req)
+            const body = await readJsonBody<{
+              path?: string
+              content?: string
+            }>(req)
             if (!body.path || typeof body.content !== "string") {
               sendJson(res, 400, { error: "Missing path or content" })
               return
@@ -164,6 +186,85 @@ export function workspaceApiPlugin(): Plugin {
             fs.mkdirSync(path.dirname(abs), { recursive: true })
             fs.writeFileSync(abs, body.content, "utf8")
             sendJson(res, 200, { path: body.path })
+            return
+          }
+
+          if (pathname === "/api/workspace/file" && req.method === "PATCH") {
+            const body = await readJsonBody<{
+              path?: string
+              newPath?: string
+            }>(req)
+            if (!body.path || !body.newPath) {
+              sendJson(res, 400, { error: "Missing path or newPath" })
+              return
+            }
+            const abs = safeResolve(workspaceRoot, body.path)
+            const nextAbs = safeResolve(workspaceRoot, body.newPath)
+            if (
+              !abs.endsWith(MARKDOWN_EXT) ||
+              !nextAbs.endsWith(MARKDOWN_EXT)
+            ) {
+              sendJson(res, 400, { error: "Only .md files can be renamed" })
+              return
+            }
+            if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
+              sendJson(res, 404, { error: "File not found" })
+              return
+            }
+            if (fs.existsSync(nextAbs)) {
+              sendJson(res, 409, {
+                error: "A file already exists at the new path",
+              })
+              return
+            }
+            fs.mkdirSync(path.dirname(nextAbs), { recursive: true })
+            fs.renameSync(abs, nextAbs)
+            sendJson(res, 200, { path: body.newPath })
+            return
+          }
+
+          if (pathname === "/api/workspace/folder" && req.method === "PUT") {
+            const body = await readJsonBody<{ path?: string }>(req)
+            if (!body.path?.trim()) {
+              sendJson(res, 400, { error: "Missing path" })
+              return
+            }
+            const abs = safeResolve(workspaceRoot, body.path)
+            if (fs.existsSync(abs) && !fs.statSync(abs).isDirectory()) {
+              sendJson(res, 409, { error: "A file exists at the path" })
+              return
+            }
+            fs.mkdirSync(abs, { recursive: true })
+            sendJson(res, 200, { path: body.path })
+            return
+          }
+
+          if (
+            pathname === "/api/workspace/folder-path" &&
+            req.method === "GET"
+          ) {
+            const filePath = url.searchParams.get("path")
+            if (!filePath) {
+              sendJson(res, 400, { error: "Missing path" })
+              return
+            }
+            const abs = safeResolve(workspaceRoot, filePath)
+            sendJson(res, 200, { path: path.dirname(abs) })
+            return
+          }
+
+          if (
+            pathname === "/api/workspace/open-folder" &&
+            req.method === "POST"
+          ) {
+            const body = await readJsonBody<{ path?: string }>(req)
+            if (!body.path) {
+              sendJson(res, 400, { error: "Missing path" })
+              return
+            }
+            const abs = safeResolve(workspaceRoot, body.path)
+            await openFolder(path.dirname(abs))
+            sendJson(res, 200, { ok: true })
             return
           }
 

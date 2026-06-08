@@ -1,15 +1,10 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Add01Icon, MoreHorizontalIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PanelRightCloseIcon, PanelRightOpenIcon, WorkHistoryIcon } from "@hugeicons/core-free-icons";
 import {
-  IconDots,
-  IconHistory,
-  IconLayoutSidebarLeftCollapse,
-  IconLayoutSidebarLeftExpand,
-  IconMessage,
-  IconPlus,
-  IconX,
-} from "@tabler/icons-react"
-
+  ShellIconButton,
+  ShellTooltipIconButton,
+} from "@/components/chrome-toolbar-button"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import {
   Menu,
   MenuGroup,
@@ -18,225 +13,166 @@ import {
   MenuPopup,
   MenuTrigger,
 } from "@/components/ui/menu"
-import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs"
-import { toastManager } from "@/components/ui/toast"
-import { shell, spacing } from "@/lib/shell-chrome"
+import { shell } from "@/lib/shell-chrome"
+import { row } from "@/lib/spacing"
 import { cn } from "@/lib/utils"
 
 /**
- * Chrome：面板头 `shell.panelHeader`；图标 `Button icon-sm`；Explorer 标签 coss Tabs underline。
- */
+ * Chrome锛欵xplorer / Chat 鏀剁撼閽€丒xplorer ToggleGroup銆侀仐鐣?ChatPanelHeader銆? */
 
-/* ──────── Explorer Panel Tabs ──────── */
+/* 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ Explorer view 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
-export type ExplorerPanel = "projects" | "files" | "outline"
+export type ExplorerView = "file" | "outline"
 
-const EXPLORER_TABS: { id: ExplorerPanel; label: string }[] = [
-  { id: "projects", label: "Projects" },
-  { id: "files", label: "Files" },
-  { id: "outline", label: "Outline" },
-]
-
-export function ExplorerPanelHeader({
-  panel,
-  onPanelChange,
-  onClose,
+export function ExplorerPanelToggle({
+  open,
+  shown,
+  onOpenChange,
 }: {
-  panel: ExplorerPanel
-  onPanelChange: (panel: ExplorerPanel) => void
-  onClose: () => void
+  /** 用户开关状态（可 pinned 但极窄时未显示） */
+  open: boolean
+  /** 当前是否在屏幕上可见（inline 列或全屏） */
+  shown?: boolean
+  onOpenChange: (open: boolean) => void
 }) {
-  return (
-    <header className={shell.panelHeader}>
-      <Tabs
-        value={panel}
-        onValueChange={(value) => onPanelChange(value as ExplorerPanel)}
-        className={shell.explorerTabs}
-      >
-        <TabsList variant="underline" className={shell.explorerTabsList}>
-          {EXPLORER_TABS.map(({ id, label }) => (
-            <TabsTab key={id} value={id} className={shell.explorerTabsTab}>
-              {label}
-            </TabsTab>
-          ))}
-        </TabsList>
-      </Tabs>
-      <Button
-        type="button"
-        size="icon-sm"
-        variant="ghost"
-        aria-label="Collapse sidebar"
-        className={shell.panelHeaderIcon}
-        onClick={onClose}
-      >
-        <IconLayoutSidebarLeftCollapse aria-hidden="true" />
-      </Button>
-    </header>
-  )
-}
+  const isShown = shown ?? open
+  const label = isShown ? "Collapse sidebar" : "Open sidebar"
 
-/* ──────── Document Floating Chrome ──────── */
-
-export function DocumentFloatingChrome({
-  explorerOpen,
-  onExplorerOpenChange,
-  chatOpen,
-  onChatOpenChange,
-  pendingCount,
-}: {
-  explorerOpen: boolean
-  onExplorerOpenChange: (open: boolean) => void
-  chatOpen: boolean
-  onChatOpenChange: (open: boolean) => void
-  pendingCount: number
-}) {
   return (
-    <div
-      className={cn(
-        "pointer-events-none sticky top-0 z-10 flex items-center justify-between",
-        shell.floatingBar,
-      )}
+    <ShellTooltipIconButton
+      label={label}
+      tooltip={label}
+      side="bottom"
+      className={shell.panelHeaderIcon}
+      onClick={() => onOpenChange(!open)}
     >
-      <div
-        className={cn(
-          "pointer-events-auto flex min-w-0 flex-1 items-center",
-          spacing.xs,
-        )}
-      >
-        {!explorerOpen ? (
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            aria-label="Open sidebar"
-            onClick={() => onExplorerOpenChange(true)}
-          >
-            <IconLayoutSidebarLeftExpand aria-hidden="true" />
-          </Button>
-        ) : null}
-      </div>
-      <div
-        className={cn(
-          "pointer-events-auto flex items-center",
-          spacing.xs,
-        )}
-      >
-        {!chatOpen ? (
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            className="relative"
-            aria-label="Open chat"
-            onClick={() => onChatOpenChange(true)}
-          >
-            <IconMessage aria-hidden="true" />
-            {pendingCount > 0 ? (
-              <Badge
-                variant="default"
-                size="sm"
-                className="absolute -right-0.5 -top-0.5 min-w-4"
-              >
-                {pendingCount}
-              </Badge>
-            ) : null}
-          </Button>
-        ) : null}
-      </div>
-    </div>
+      {isShown ? (
+        <HugeiconsIcon icon={PanelLeftCloseIcon} aria-hidden="true" />
+      ) : (
+        <HugeiconsIcon icon={PanelLeftOpenIcon} aria-hidden="true" />
+      )}
+    </ShellTooltipIconButton>
+  )
+}
+export function ChatPanelToggle({
+  open,
+  shown,
+  onOpenChange,
+  pendingCount = 0,
+}: {
+  open: boolean
+  shown?: boolean
+  onOpenChange: (open: boolean) => void
+  pendingCount?: number
+}) {
+  const isShown = shown ?? open
+  const label = isShown ? "Close chat" : "Open chat"
+
+  return (
+    <ShellIconButton
+      label={label}
+      className={cn(shell.panelHeaderIcon, "shrink-0", !open && "relative")}
+      onClick={() => onOpenChange(!open)}
+    >
+      {isShown ? (
+        <HugeiconsIcon icon={PanelRightCloseIcon} aria-hidden="true" />
+      ) : (
+        <HugeiconsIcon icon={PanelRightOpenIcon} aria-hidden="true" />
+      )}
+      {open && pendingCount > 0 ? (
+        <Badge
+          variant="default"
+          size="sm"
+          className="absolute -top-0.5 -right-0.5 min-w-4"
+        >
+          {pendingCount}
+        </Badge>
+      ) : null}
+    </ShellIconButton>
   )
 }
 
-/* ──────── Chat Panel Header ──────── */
+/* 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ Explorer panel header 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+
+/* 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ Chat panel header 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 
 export function ChatPanelHeader({
-  onClose,
   onNewChat,
-  onShowChatHistory,
+  chatSessions,
+  onSelectChatSession,
+  agentModelLabel,
 }: {
-  onClose: () => void
   onNewChat: () => void
-  onShowChatHistory: () => void
+  chatSessions: { id: string; title: string }[]
+  onSelectChatSession: (id: string) => void
+  agentModelLabel?: string
 }) {
   return (
     <header className={shell.panelHeader}>
-      <div className={cn("flex min-w-0 flex-1 items-center", spacing.xs)}>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
+      <div className={cn("flex min-w-0 flex-1 items-center", row.xs)}>
+        <ShellIconButton
+          label="New chat"
           className={shell.panelHeaderIcon}
-          aria-label="New chat"
           onClick={onNewChat}
         >
-          <IconPlus aria-hidden="true" />
-        </Button>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          className={shell.panelHeaderIcon}
-          aria-label="Chat history"
-          onClick={onShowChatHistory}
-        >
-          <IconHistory aria-hidden="true" />
-        </Button>
-        <ChatMoreMenu />
+          <HugeiconsIcon icon={Add01Icon} aria-hidden="true" />
+        </ShellIconButton>
+        <Menu>
+          <MenuTrigger
+            render={
+              <ShellIconButton
+                label="Chat history"
+                className={shell.panelHeaderIcon}
+              />
+            }
+          >
+            <HugeiconsIcon icon={WorkHistoryIcon} aria-hidden="true" />
+          </MenuTrigger>
+          <MenuPopup align="start" className="min-w-56">
+            <MenuGroup>
+              <MenuGroupLabel>Recent chats</MenuGroupLabel>
+              {chatSessions.length === 0 ? (
+                <MenuItem className={shell.menuItem} disabled>
+                  No saved chats
+                </MenuItem>
+              ) : (
+                chatSessions.map((s) => (
+                  <MenuItem
+                    key={s.id}
+                    className={shell.menuItem}
+                    onClick={() => onSelectChatSession(s.id)}
+                  >
+                    <span className="truncate">{s.title}</span>
+                  </MenuItem>
+                ))
+              )}
+            </MenuGroup>
+          </MenuPopup>
+        </Menu>
+        <ChatMoreMenu agentModelLabel={agentModelLabel} />
       </div>
-      <Button
-        type="button"
-        size="icon-sm"
-        variant="ghost"
-        className={shell.panelHeaderIcon}
-        aria-label="Close chat"
-        onClick={onClose}
-      >
-        <IconX aria-hidden="true" />
-      </Button>
     </header>
   )
 }
 
-function ChatMoreMenu() {
+function ChatMoreMenu({ agentModelLabel }: { agentModelLabel?: string }) {
   return (
     <Menu>
       <MenuTrigger
         render={
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
+          <ShellIconButton
+            label="More chat options"
             className={shell.panelHeaderIcon}
-            aria-label="More chat options"
           />
         }
       >
-        <IconDots aria-hidden="true" />
+        <HugeiconsIcon icon={MoreHorizontalIcon} aria-hidden="true" />
       </MenuTrigger>
       <MenuPopup align="end" className="min-w-44">
         <MenuGroup>
-          <MenuGroupLabel>Chat</MenuGroupLabel>
-          <MenuItem
-            onClick={() => {
-              toastManager.add({
-                type: "info",
-                title: "Export conversation",
-                description: "Coming in a later phase.",
-              })
-            }}
-          >
-            Export conversation…
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              toastManager.add({
-                type: "info",
-                title: "Chat settings",
-                description: "Coming in a later phase.",
-              })
-            }}
-          >
-            Settings…
+          <MenuGroupLabel>Agent</MenuGroupLabel>
+          <MenuItem className={shell.menuItem} disabled>
+            Model: {agentModelLabel ?? "-"}
           </MenuItem>
         </MenuGroup>
       </MenuPopup>

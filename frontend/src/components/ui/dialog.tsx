@@ -1,9 +1,10 @@
 "use client";
 
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
-import { IconX } from "@tabler/icons-react";
 import type React from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -99,10 +100,10 @@ export function DialogPopup({
             <DialogPrimitive.Close
               aria-label="Close"
               className="absolute end-2 top-2"
-              render={<Button size="icon" variant="ghost" />}
+              render={<Button size="icon-lg" variant="ghost" />}
               {...closeProps}
             >
-              <IconX />
+              <HugeiconsIcon icon={Cancel01Icon} />
             </DialogPrimitive.Close>
           )}
         </DialogPrimitive.Popup>

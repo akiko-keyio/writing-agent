@@ -1,5 +1,7 @@
 import type { WorkspaceFileNode } from "@/lib/workspace-api"
 
+import { pathDirname } from "@/lib/path"
+
 const SKIP_DIR_NAMES = new Set([
   "node_modules",
   ".git",
@@ -23,8 +25,7 @@ type DirectoryPickerWindow = Window & {
 export function isFolderPickerSupported(): boolean {
   return (
     typeof window !== "undefined" &&
-    typeof (window as DirectoryPickerWindow).showDirectoryPicker ===
-      "function"
+    typeof (window as DirectoryPickerWindow).showDirectoryPicker === "function"
   )
 }
 
@@ -32,7 +33,7 @@ export async function pickWorkspaceFolder(): Promise<FileSystemDirectoryHandle> 
   const picker = (window as DirectoryPickerWindow).showDirectoryPicker
   if (!picker) {
     throw new Error(
-      "Your browser does not support opening folders. Use Chrome or Edge, or run the dev server to browse the project.",
+      "Your browser does not support opening folders. Use Chrome or Edge, or run the dev server to browse the project."
     )
   }
   return picker({ mode: "readwrite" })
@@ -40,7 +41,7 @@ export async function pickWorkspaceFolder(): Promise<FileSystemDirectoryHandle> 
 
 async function listDirectory(
   dir: FileSystemDirectoryHandle,
-  relativeDir: string,
+  relativeDir: string
 ): Promise<WorkspaceFileNode[]> {
   const nodes: WorkspaceFileNode[] = []
 
@@ -52,7 +53,6 @@ async function listDirectory(
     if (handle.kind === "directory") {
       if (SKIP_DIR_NAMES.has(name)) continue
       const children = await listDirectory(handle, rel)
-      if (children.length === 0) continue
       nodes.push({ name, path: rel, type: "folder", children })
       continue
     }
@@ -71,7 +71,7 @@ async function listDirectory(
 }
 
 export async function buildTreeFromDirectoryHandle(
-  root: FileSystemDirectoryHandle,
+  root: FileSystemDirectoryHandle
 ): Promise<WorkspaceFileNode[]> {
   const children = await listDirectory(root, "")
   return [
@@ -86,7 +86,7 @@ export async function buildTreeFromDirectoryHandle(
 
 async function resolveFileHandle(
   root: FileSystemDirectoryHandle,
-  filePath: string,
+  filePath: string
 ): Promise<FileSystemFileHandle> {
   const parts = filePath.split("/").filter(Boolean)
   if (parts.length === 0) {
@@ -101,19 +101,49 @@ async function resolveFileHandle(
   return dir.getFileHandle(parts[parts.length - 1])
 }
 
+async function resolveParentDirectory(
+  root: FileSystemDirectoryHandle,
+  filePath: string
+): Promise<{ dir: FileSystemDirectoryHandle; name: string }> {
+  const parts = filePath.split("/").filter(Boolean)
+  if (parts.length === 0) {
+    throw new Error("Invalid file path")
+  }
+
+  let dir = root
+  for (let i = 0; i < parts.length - 1; i++) {
+    dir = await dir.getDirectoryHandle(parts[i])
+  }
+
+  return { dir, name: parts[parts.length - 1] }
+}
+
 export async function readFileFromDirectoryHandle(
   root: FileSystemDirectoryHandle,
-  filePath: string,
+  filePath: string
 ): Promise<string> {
   const fileHandle = await resolveFileHandle(root, filePath)
   const file = await fileHandle.getFile()
   return file.text()
 }
 
+export async function createFolderInDirectoryHandle(
+  root: FileSystemDirectoryHandle,
+  folderPath: string
+): Promise<void> {
+  const parts = folderPath.split("/").filter(Boolean)
+  if (parts.length === 0) throw new Error("Invalid folder path")
+
+  let dir = root
+  for (const part of parts) {
+    dir = await dir.getDirectoryHandle(part, { create: true })
+  }
+}
+
 export async function writeFileToDirectoryHandle(
   root: FileSystemDirectoryHandle,
   filePath: string,
-  content: string,
+  content: string
 ): Promise<void> {
   if (!isMarkdownFile(filePath.split("/").pop() ?? "")) {
     throw new Error("Only .md files can be saved")
@@ -133,4 +163,34 @@ export async function writeFileToDirectoryHandle(
   const writable = await fileHandle.createWritable()
   await writable.write(content)
   await writable.close()
+}
+
+export async function renameFileInDirectoryHandle(
+  root: FileSystemDirectoryHandle,
+  filePath: string,
+  newPath: string
+): Promise<void> {
+  if (filePath === newPath) return
+  if (!isMarkdownFile(newPath.split("/").pop() ?? "")) {
+    throw new Error("Only .md files can be renamed")
+  }
+
+  const content = await readFileFromDirectoryHandle(root, filePath)
+
+  try {
+    await resolveFileHandle(root, newPath)
+    throw new Error("A file already exists at the new path")
+  } catch (err) {
+    if (!(err instanceof DOMException) || err.name !== "NotFoundError") {
+      throw err
+    }
+  }
+
+  await writeFileToDirectoryHandle(root, newPath, content)
+  const { dir, name } = await resolveParentDirectory(root, filePath)
+  await dir.removeEntry(name)
+}
+
+export function relativeFolderPathForFile(filePath: string): string {
+  return pathDirname(filePath)
 }

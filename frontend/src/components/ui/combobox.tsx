@@ -1,7 +1,8 @@
 "use client";
 
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowUpDownIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
-import { IconSelector, IconX } from "@tabler/icons-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -116,7 +117,7 @@ export function ComboboxInput({
           {...triggerProps}
         >
           <ComboboxPrimitive.Icon data-slot="combobox-icon">
-            <IconSelector />
+            <HugeiconsIcon icon={ArrowUpDownIcon} />
           </ComboboxPrimitive.Icon>
         </ComboboxTrigger>
       )}
@@ -128,7 +129,7 @@ export function ComboboxInput({
           )}
           {...clearProps}
         >
-          <IconX />
+          <HugeiconsIcon icon={Cancel01Icon} />
         </ComboboxClear>
       )}
     </ComboboxPrimitive.InputGroup>
@@ -432,7 +433,7 @@ export function ComboboxChipRemove(
       data-slot="combobox-chip-remove"
       {...props}
     >
-      <IconX />
+      <HugeiconsIcon icon={Cancel01Icon} />
     </ComboboxPrimitive.ChipRemove>
   );
 }

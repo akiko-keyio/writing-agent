@@ -94,3 +94,18 @@ export function useMediaQuery(
 export function useIsMobile(): boolean {
   return useMediaQuery("max-md");
 }
+
+export function useViewportWidth(): number {
+  const subscribe = useCallback((callback: () => void) => {
+    if (typeof window === "undefined") return () => {};
+    window.addEventListener("resize", callback);
+    return () => window.removeEventListener("resize", callback);
+  }, []);
+
+  const getSnapshot = useCallback(() => {
+    if (typeof window === "undefined") return 1280;
+    return window.innerWidth;
+  }, []);
+
+  return useSyncExternalStore(subscribe, getSnapshot, () => 1280);
+}

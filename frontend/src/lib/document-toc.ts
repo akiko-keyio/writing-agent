@@ -1,9 +1,17 @@
 /** Serializable TOC row for the outline panel */
 export type DocumentTocEntry = {
   id: string
+  /** 大纲树深度（用于缩进） */
   level: number
+  /** 对应 h1–h6（用于字号/字重） */
+  headingLevel: number
   title: string
   isActive?: boolean
+}
+
+/** TipTap TableOfContents `getId`：与 fallback 解析一致的可读 slug */
+export function tocHeadingIdFromTitle(textContent: string): string {
+  return slugifyHeading(textContent)
 }
 
 export function slugifyHeading(text: string): string {
@@ -24,16 +32,31 @@ function uniqueSlug(text: string, seen: Map<string, number>): string {
   return count === 0 ? base : `${base}-${count + 1}`
 }
 
+/** 仅把短章节行（如 `1 Introduction`）提升为 ATX，避免正文句子误入大纲。 */
+function parseNumberedSectionLine(
+  trimmed: string,
+): { level: number; title: string } | null {
+  const match = /^(\d+(?:\.\d+)*)\s+(.+)$/.exec(trimmed)
+  if (!match) return null
+  const title = match[2].trim()
+  if (title.length > 72) return null
+  if (/[,.;:!?]/.test(title)) return null
+  return {
+    level: Math.min(match[1].split(".").length, 6),
+    title,
+  }
+}
+
 /** Promote lines like `1 Introduction` to ATX headings for TipTap / TOC. */
 export function normalizeMarkdownHeadings(markdown: string): string {
   return markdown
     .split(/\r?\n/)
     .map((line) => {
-      if (/^#{1,6}\s/.test(line.trim())) return line
-      const match = /^(\d+(?:\.\d+)*)\s+(.+)$/.exec(line.trim())
-      if (!match) return line
-      const level = Math.min(match[1].split(".").length, 6)
-      return `${"#".repeat(level)} ${match[2].trim()}`
+      const trimmed = line.trim()
+      if (/^#{1,6}\s/.test(trimmed)) return line
+      const section = parseNumberedSectionLine(trimmed)
+      if (!section) return line
+      return `${"#".repeat(section.level)} ${section.title}`
     })
     .join("\n")
 }
@@ -51,17 +74,18 @@ export function parseMarkdownHeadings(markdown: string): DocumentTocEntry[] {
       entries.push({
         id: uniqueSlug(title, seen),
         level: atx[1].length,
+        headingLevel: atx[1].length,
         title,
       })
       continue
     }
-    const numbered = /^(\d+(?:\.\d+)*)\s+(.+)$/.exec(trimmed)
-    if (numbered) {
-      const title = numbered[2].trim()
+    const section = parseNumberedSectionLine(trimmed)
+    if (section) {
       entries.push({
-        id: uniqueSlug(title, seen),
-        level: Math.min(numbered[1].split(".").length, 6),
-        title,
+        id: uniqueSlug(section.title, seen),
+        level: section.level,
+        headingLevel: section.level,
+        title: section.title,
       })
     }
   }

@@ -1,0 +1,12 @@
+{
+  "name": "writing-agent",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n agent,web -c blue,green \"npm run dev:agent\" \"npm run dev:frontend\"",
+    "dev:agent": "cd agent && uv run python main.py",
+    "dev:frontend": "cd frontend && pnpm dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

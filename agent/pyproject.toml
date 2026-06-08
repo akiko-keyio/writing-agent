@@ -1,0 +1,27 @@
+[project]
+name = "writing-agent"
+version = "0.1.0"
+description = "Writing Agent WebSocket server"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.40.0",
+    "websockets>=13.0",
+    "python-dotenv>=1.0.0",
+    "strands-agents>=1.42.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+writing-agent = "main:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+markers = [
+    "integration: live WebSocket server required",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0.0",
+]

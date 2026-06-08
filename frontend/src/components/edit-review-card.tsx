@@ -1,12 +1,6 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowDown01Icon, ArrowUp02Icon, ArrowUpRight01Icon, Refresh01Icon, Tick01Icon } from "@hugeicons/core-free-icons";
 import { useState } from "react"
-import {
-  IconArrowUp,
-  IconArrowUpRight,
-  IconCheck,
-  IconChevronDown,
-  IconRefresh,
-} from "@tabler/icons-react"
-
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -28,6 +22,8 @@ import {
   InputGroupTextarea,
 } from "@/components/ui/input-group"
 import { Separator } from "@/components/ui/separator"
+import { cardBarPad, gap, p, row, rowPad, stack } from "@/lib/spacing"
+import { shell } from "@/lib/shell-chrome"
 import { cn } from "@/lib/utils"
 
 /* ──────── Types ──────── */
@@ -97,7 +93,11 @@ function EditRow({
       data-edit-id={item.id}
       data-slot="edit-row"
       className={cn(
-        "group/row relative flex items-start gap-3 px-3.5 py-2.5 transition-colors hover:bg-accent/40",
+        cn(
+          "group/row relative flex items-start transition-colors hover:bg-accent",
+          rowPad,
+          gap.md
+        ),
       )}
     >
       {/* Checkbox */}
@@ -121,7 +121,7 @@ function EditRow({
             {item.old.trim()}
           </span>
         ) : long ? (
-          <div className="flex flex-col gap-0.5">
+          <div className={stack.hairline}>
             <span
               className={cn(
                 "block",
@@ -145,7 +145,7 @@ function EditRow({
             </span>
           </div>
         ) : (
-          <div className="flex flex-wrap items-baseline gap-1.5">
+          <div className={cn("flex flex-wrap items-baseline", gap.sm)}>
             <span
               className={cn(
                 accepted
@@ -169,31 +169,36 @@ function EditRow({
         )}
 
         {/* Hover actions */}
-        <div className="mt-1 flex gap-2 opacity-0 transition-opacity group-hover/row:opacity-100">
+        <div
+          className={cn(
+            "mt-1 opacity-0 transition-opacity group-hover/row:opacity-100",
+            row.sm
+          )}
+        >
           <Button
             type="button"
             variant="link"
             size="sm"
-            className="h-auto gap-1 p-0 text-sm text-muted-foreground"
+            className={cn("h-auto text-sm text-muted-foreground", p[0].all, gap.xs)}
             onClick={(e) => {
               e.stopPropagation()
               onViewInDocument()
             }}
           >
-            <IconArrowUpRight aria-hidden="true" />
+            <HugeiconsIcon icon={ArrowUpRight01Icon} aria-hidden="true" />
             View
           </Button>
           <Button
             type="button"
             variant="link"
             size="sm"
-            className="h-auto gap-1 p-0 text-sm text-muted-foreground"
+            className={cn("h-auto text-sm text-muted-foreground", p[0].all, gap.xs)}
             onClick={(e) => {
               e.stopPropagation()
               onRequestAlternative()
             }}
           >
-            <IconRefresh aria-hidden="true" />
+            <HugeiconsIcon icon={Refresh01Icon} aria-hidden="true" />
             Request alternative
           </Button>
         </div>
@@ -223,12 +228,17 @@ function ConfirmBar({
   onConfirm: () => void
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-t bg-background px-3.5 py-2.5">
+    <div
+      className={cn(
+        "flex items-center justify-between border-t bg-background",
+        rowPad
+      )}
+    >
       <span className="text-sm text-muted-foreground">
         {acceptedCount} of {totalCount} accepted
       </span>
       <Button type="button" size="sm" onClick={onConfirm}>
-        <IconCheck aria-hidden="true" />
+        <HugeiconsIcon icon={Tick01Icon} aria-hidden="true" />
         Confirm
       </Button>
     </div>
@@ -268,8 +278,15 @@ export function EditReviewCard({
     <div className="flex flex-col">
       {/* Edit Group Card — sticky at bottom */}
       <Collapsible open={open} onOpenChange={setOpen}>
-        <Card className="w-full min-w-0 overflow-hidden rounded-xl py-0 shadow-xs/5">
-          <CardHeader className="flex flex-row items-center gap-2 border-b px-3.5 py-2.5">
+        <Card
+          className={cn(
+            "w-full min-w-0 overflow-hidden rounded-lg shadow-xs/5",
+            p[0].y
+          )}
+        >
+          <CardHeader
+            className={cn("flex flex-row items-center border-b", cardBarPad, gap.sm)}
+          >
             <CardTitle className="min-w-0 flex-1 text-sm font-medium leading-snug">
               {issue}
             </CardTitle>
@@ -279,25 +296,22 @@ export function EditReviewCard({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-7 shrink-0 gap-1 px-1.5 text-muted-foreground"
+                  className={cn("shrink-0 text-muted-foreground", gap.xs, p[1.5].x)}
                 />
               }
             >
               <span className="text-sm tabular-nums">
                 {edits.length} edits
               </span>
-              <IconChevronDown
-                aria-hidden="true"
-                className={cn(
-                  "size-3.5 transition-transform",
-                  open && "rotate-180",
-                )}
-              />
+              <HugeiconsIcon icon={ArrowDown01Icon} aria-hidden="true" className={cn(
+                                            "size-3.5 transition-transform",
+                                            open && "rotate-180",
+                                          )} />
             </CollapsibleTrigger>
           </CardHeader>
 
           <CollapsiblePanel>
-            <CardPanel className="p-0">
+            <CardPanel className={p[0].all}>
               {edits.map((edit, index) => (
                 <div key={edit.item.id}>
                   {index > 0 ? <Separator /> : null}
@@ -313,13 +327,18 @@ export function EditReviewCard({
               ))}
             </CardPanel>
 
-            <CardFooter className="flex items-center justify-between border-t px-3.5 py-2">
-              <div className="flex gap-3">
+            <CardFooter
+              className={cn(
+                "flex items-center justify-between border-t",
+                cardBarPad
+              )}
+            >
+              <div className={row.md}>
                 <Button
                   type="button"
                   variant="link"
                   size="sm"
-                  className="h-auto p-0 text-sm text-muted-foreground"
+                  className={cn("h-auto text-sm text-muted-foreground", p[0].all)}
                   onClick={onAcceptAll}
                 >
                   Accept all
@@ -328,7 +347,7 @@ export function EditReviewCard({
                   type="button"
                   variant="link"
                   size="sm"
-                  className="h-auto p-0 text-sm text-muted-foreground"
+                  className={cn("h-auto text-sm text-muted-foreground", p[0].all)}
                   onClick={onRevertAll}
                 >
                   Revert all
@@ -350,7 +369,7 @@ export function EditReviewCard({
       />
 
       {/* Input Area — always Send, never morphs */}
-      <div className="border-t bg-background px-3 py-3">
+      <div className={cn("border-t bg-background", p[3].all)}>
         <InputGroup className="w-full min-w-0">
           <InputGroupTextarea
             value={inputValue}
@@ -363,12 +382,13 @@ export function EditReviewCard({
             <Button
               type="button"
               size="icon-sm"
-              variant={inputValue.trim() ? "default" : "ghost"}
+              variant="default"
+              className={shell.chatSendButton}
               disabled={!inputValue.trim()}
               aria-label="Send message"
               onClick={onSend}
             >
-              <IconArrowUp aria-hidden="true" />
+              <HugeiconsIcon icon={ArrowUp02Icon} aria-hidden="true" />
             </Button>
           </InputGroupAddon>
         </InputGroup>

@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings Inspector — 分栏 vs Frame 条目展开</title>
+  <!-- 字体 — 对齐 frontend/src/index.css -->
+  <link rel="stylesheet" href="https://unpkg.com/@calcom/cal-sans-ui@1.3.0/ui.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/geist-mono@5.1.0/index.min.css" />
+  <style>
+    @font-face {
+      font-family: "MiSans VF";
+      src: url("/fonts/MiSansVF.woff2") format("woff2-variations"), url("/fonts/MiSansVF.woff2") format("woff2");
+      font-weight: 150 700; font-style: normal; font-display: swap;
+      unicode-range:
+        U+3000-303F, U+3040-309F, U+30A0-30FF, U+3100-312F, U+31F0-31FF,
+        U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF,
+        U+20000-2A6DF, U+2A700-2B73F, U+2B740-2B81F, U+2B820-2CEAF, U+2CEB0-2EBEF;
+    }
+    :root {
+      --font-sans: "Cal Sans UI", "MiSans VF", ui-sans-serif, system-ui, sans-serif;
+      --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+      --radius-lg: 0.625rem;
+      --radius-xl: 0.75rem;
+      --radius-2xl: 1rem;
+      --background: #fff;
+      --foreground: #27272a;
+      --muted-foreground: #71717a;
+      --accent: rgba(0,0,0,.04);
+      --border: rgba(0,0,0,.08);
+      --input: rgba(0,0,0,.10);
+      --primary: #27272a;
+      --primary-foreground: #fafafa;
+      --destructive-foreground: #b91c1c;
+      --ring: #a1a1aa;
+      --sidebar: #fafafa;
+      --sidebar-foreground: rgba(39,39,42,.64);
+      --sidebar-accent: rgba(0,0,0,.04);
+      --sidebar-accent-foreground: #27272a;
+      --sidebar-item-selected: color-mix(in srgb, rgba(0,0,0,.10) 64%, #fafafa);
+      --popover: #fff;
+      --card: #fff;
+      --muted: rgba(0,0,0,.04);
+      --shadow-xs: 0 1px 2px rgba(0,0,0,.05);
+      --explorer-w: 200px;
+      --list-w: 200px;
+      --reading-max: 52rem;
+    }
+    html.dark {
+      --background: #0c0c0e;
+      --foreground: #f4f4f5;
+      --muted-foreground: #a1a1aa;
+      --accent: rgba(255,255,255,.04);
+      --border: rgba(255,255,255,.06);
+      --input: rgba(255,255,255,.08);
+      --primary: #f4f4f5;
+      --primary-foreground: #27272a;
+      --destructive-foreground: #fca5a5;
+      --sidebar: #111113;
+      --sidebar-foreground: rgba(244,244,245,.64);
+      --sidebar-accent: rgba(255,255,255,.04);
+      --sidebar-accent-foreground: #f4f4f5;
+      --sidebar-item-selected: color-mix(in srgb, rgba(255,255,255,.08) 64%, var(--sidebar));
+      --popover: #18181b;
+      --card: #18181b;
+      --muted: rgba(255,255,255,.04);
+      --shadow-xs: 0 1px 2px rgba(0,0,0,.2);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans); font-size: 14px; line-height: 1.25rem;
+      color: var(--foreground); background: var(--background);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .doc-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
+      font-size: 13px; color: var(--muted-foreground);
+    }
+    .doc-bar strong { color: var(--foreground); font-weight: 600; }
+
+    .page { padding: 16px; max-width: 1200px; margin: 0 auto; }
+    .hint { font-size: 12px; color: var(--muted-foreground); margin-bottom: 12px; line-height: 1.5; }
+    .mock-section { margin-bottom: 40px; }
+    .mock-section h2 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .mock-section > .hint { margin-bottom: 10px; }
+
+    /* coss Button — 对齐 ui/button.tsx variants */
+    .btn {
+      position: relative; display: inline-flex; shrink: 0; align-items: center; justify-content: center;
+      gap: 8px; height: 32px; padding: 0 11px; font-size: 14px; font-weight: 500;
+      border-radius: var(--radius-lg); border: 1px solid transparent;
+      cursor: pointer; font-family: inherit; white-space: nowrap; outline: none;
+      transition: box-shadow .15s, background-color .15s;
+    }
+    .btn:focus-visible { box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--background); }
+    .btn-default {
+      background: var(--primary); color: var(--primary-foreground); border-color: var(--primary);
+      box-shadow: var(--shadow-xs);
+    }
+    .btn-default:hover { filter: brightness(0.92); }
+    .btn-outline {
+      background: var(--popover); border-color: var(--input); color: var(--foreground);
+      box-shadow: var(--shadow-xs);
+    }
+    .btn-outline:hover { background: color-mix(in srgb, var(--accent) 50%, var(--popover)); }
+    .btn-ghost {
+      border-color: transparent; background: transparent; color: var(--foreground); font-weight: 500;
+    }
+    .btn-ghost:hover { background: var(--accent); }
+    .btn-icon { width: 32px; height: 32px; padding: 0; }
+    .btn-sm { height: 28px; padding: 0 9px; gap: 6px; font-size: 14px; }
+    .btn svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .8; pointer-events: none; }
+
+    /* coss Field + Input — 对齐 ui/field.tsx + ui/input.tsx */
+    .field { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+    .field label { font-size: 14px; font-weight: 500; line-height: 1.125; color: var(--foreground); }
+    .input-wrap {
+      position: relative; display: inline-flex; width: 100%;
+      border: 1px solid var(--input); border-radius: var(--radius-lg);
+      background: var(--background); box-shadow: var(--shadow-xs);
+    }
+    .input-wrap::before {
+      content: ""; pointer-events: none; position: absolute; inset: 0;
+      border-radius: calc(var(--radius-lg) - 1px);
+      box-shadow: 0 1px rgba(0,0,0,.04);
+    }
+    html.dark .input-wrap::before { box-shadow: 0 -1px rgba(255,255,255,.06); }
+    .input-wrap:focus-within {
+      border-color: var(--ring);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 24%, transparent);
+    }
+    .input-wrap input, .input-wrap textarea {
+      flex: 1; width: 100%; min-width: 0; border: none; background: transparent; outline: none;
+      font: inherit; font-size: 14px; line-height: 1.25rem; color: inherit;
+      padding: 6px 11px; border-radius: inherit;
+    }
+    .input-wrap input::placeholder, .input-wrap textarea::placeholder {
+      color: color-mix(in srgb, var(--muted-foreground) 72%, transparent);
+    }
+    .input-wrap textarea { min-height: 72px; resize: vertical; }
+
+    /* shell — topbar 无下框线（对齐真实 Settings 顶栏） */
+    .wb {
+      border: 1px solid var(--border); border-radius: 12px;
+      height: 560px; display: flex; flex-direction: column; overflow: hidden;
+    }
+    .topbar {
+      display: grid; grid-template-columns: var(--explorer-w) 1fr;
+      height: 48px; align-items: center; flex-shrink: 0;
+    }
+    .topbar-side {
+      padding: 0 8px; background: var(--sidebar);
+      border-right: 1px solid var(--border); height: 100%;
+      display: flex; align-items: center;
+    }
+    .topbar-main { padding: 0 12px; font-size: 14px; min-height: 0; }
+
+    /* —— 方案 A：Inspector 分栏 —— */
+    .grid { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--explorer-w) 1fr; }
+    .nav-col { background: var(--sidebar); border-right: 1px solid var(--border); padding: 8px 8px 8px; overflow-y: auto; }
+    .nav-label { font-size: 11px; font-weight: 500; color: var(--muted-foreground); padding: 6px 8px 2px; }
+    .nav-label.gap { margin-top: 6px; }
+    .nav-btn {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      height: 32px; padding: 0 8px; border: none; border-radius: var(--radius-lg);
+      background: transparent; color: var(--sidebar-accent-foreground);
+      font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+    }
+    .nav-btn svg { width: 16px; height: 16px; opacity: .75; flex-shrink: 0; }
+    .nav-btn:hover, .nav-btn.on { background: var(--sidebar-accent); }
+
+    .split { display: grid; grid-template-columns: var(--list-w) 1fr; min-height: 0; height: 100%; }
+    .list-col { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+    .list-scroll { flex: 1; overflow-y: auto; padding: 4px; }
+    .list-item {
+      display: block; width: 100%; padding: 6px 10px; border: none; border-radius: var(--radius-lg);
+      background: transparent; font: inherit; font-size: 14px; text-align: left;
+      cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .list-item:hover { background: var(--accent); }
+    .list-item.on { background: var(--sidebar-item-selected); }
+    .list-foot { padding: 8px; border-top: 1px solid var(--border); }
+    .list-foot .btn { width: 100%; }
+
+    .detail-col { overflow-y: auto; padding: 20px 24px; }
+    .detail-col .body { max-width: var(--reading-max); display: flex; flex-direction: column; gap: 16px; }
+    .detail-col p { color: var(--muted-foreground); font-size: 14px; }
+    .detail-col .links { display: flex; flex-direction: column; gap: 2px; }
+    .detail-col .links button.linkish {
+      display: block; padding: 4px 0; font: inherit; font-size: 14px;
+      color: var(--foreground); background: none; border: none; cursor: pointer; text-align: left;
+    }
+    .detail-col .links button.linkish:hover { text-decoration: underline; }
+    .detail-col .links .mono { font-family: var(--font-mono); font-size: 13px; color: var(--muted-foreground); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .actions .spacer { flex: 1; }
+    .empty { color: var(--muted-foreground); font-size: 14px; padding: 40px 0; }
+    .tag-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--accent); color: var(--muted-foreground); }
+
+    /* —— 方案 B：侧栏分区 + 主区条目 Frame 展开（p-frame-2） —— */
+    .main-col { overflow-y: auto; min-height: 0; padding: 20px 24px; }
+    .reading-col {
+      max-width: min(100%, var(--reading-max)); margin: 0 auto;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .page-hd { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .page-hd h1 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .page-hd p { font-size: 14px; color: var(--muted-foreground); line-height: 1.4; max-width: 36rem; }
+    .frame-stack { display: flex; flex-direction: column; gap: 8px; }
+
+    /*
+     * coss Frame + Collapsible — 对齐 ui/frame.tsx + p-frame-2
+     * Frame > Collapsible > FrameHeader(row) + CollapsiblePanel > FramePanel
+     */
+    .frame {
+      position: relative; display: flex; flex-direction: column;
+      border-radius: var(--radius-2xl);
+      background: color-mix(in srgb, var(--muted) 72%, transparent);
+      padding: 4px;
+    }
+    .frame[data-slot="frame"] { /* 与 React data-slot 一致 */ }
+
+    /* p-frame-2: FrameHeader flex-row items-center justify-between px-2 py-2 */
+    .frame-header-row {
+      display: flex; flex-direction: row; align-items: center; justify-content: space-between;
+      padding: 8px; gap: 8px;
+    }
+    /* CollapsibleTrigger render=Button ghost：chevron 与首行文字对齐 */
+    .frame-collapsible-trigger {
+      flex: 1; min-width: 0; justify-content: flex-start; align-items: flex-start;
+      height: auto; min-height: 32px; padding: 8px; font-weight: 400; text-align: left; gap: 8px;
+    }
+    .frame-collapsible-trigger .chev {
+      width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; opacity: .8;
+      transition: transform 200ms ease;
+    }
+    .coss-collapsible[data-panel-open] .frame-collapsible-trigger .chev { transform: rotate(180deg); }
+    .frame-trigger-body { display: flex; min-width: 0; flex: 1; flex-direction: column; align-items: flex-start; gap: 2px; }
+    .frame-header-label {
+      font-size: 14px; font-weight: 400; line-height: 1.25rem; color: var(--foreground);
+      max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    /* 折叠预览：一行 muted，展开后隐藏（详情在 FramePanel） */
+    .frame-trigger-preview {
+      font-size: 14px; line-height: 1.25rem; color: var(--muted-foreground);
+      max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .coss-collapsible[data-panel-open] .frame-trigger-preview { display: none; }
+    .frame-hd-actions { display: flex; align-items: center; flex-shrink: 0; }
+
+    /* CollapsiblePanel — 对齐 ui/collapsible.tsx 高度过渡 */
+    .coss-collapsible-panel {
+      display: grid; grid-template-rows: 0fr;
+      overflow: hidden; transition: grid-template-rows 200ms ease;
+    }
+    .coss-collapsible[data-panel-open] .coss-collapsible-panel { grid-template-rows: 1fr; }
+    .coss-collapsible-panel-inner { min-height: 0; overflow: hidden; }
+
+    /* FramePanel — 对齐 ui/frame.tsx FramePanel */
+    .frame-panel {
+      position: relative; display: flex; flex-direction: column; gap: 12px;
+      border-radius: var(--radius-xl); border: 1px solid var(--border);
+      background: var(--background); padding: 20px; box-shadow: var(--shadow-xs);
+    }
+    .frame-panel::before {
+      content: ""; pointer-events: none; position: absolute; inset: 0;
+      border-radius: calc(var(--radius-xl) - 1px);
+      box-shadow: 0 1px rgba(0,0,0,.04);
+    }
+    html.dark .frame-panel::before { box-shadow: 0 -1px rgba(255,255,255,.06); }
+    /* p-frame-2 FramePanel 内：font-semibold text-sm + text-muted-foreground text-sm */
+    .frame-panel-title { font-size: 14px; font-weight: 600; line-height: 1.25rem; color: var(--foreground); }
+    .frame-panel-desc { font-size: 14px; line-height: 1.25rem; color: var(--muted-foreground); }
+    .frame-panel .ref-list { display: flex; flex-direction: column; gap: 2px; }
+    .frame-panel .ref-list .btn-linkish {
+      justify-content: flex-start; height: auto; padding: 4px 0; font-weight: 400;
+      font-size: 13px; font-family: var(--font-mono);
+    }
+    .frame-panel .section-label {
+      font-size: 12px; font-weight: 500; color: var(--muted-foreground); padding: 4px 0 0;
+    }
+  </style>
+</head>
+<body>
+<noscript><p style="padding:16px;font-family:system-ui">请启用 JavaScript 以查看 Settings Inspector mockup。</p></noscript>
+<div id="boot-error" hidden style="padding:16px;font-family:system-ui;color:#b91c1c;white-space:pre-wrap"></div>
+
+<div class="doc-bar">
+  <span><strong>Settings Inspector</strong> · 分栏详情 vs 侧栏 + 条目 Frame（<a href="https://coss.com/ui/r/p-frame-2.json" style="color:inherit">p-frame-2</a>）</span>
+  <div style="display:flex;gap:8px">
+    <button type="button" class="btn btn-outline" id="theme-btn">深色</button>
+    <a href="/settings-design-mockups.html" class="btn btn-ghost" style="text-decoration:none">方案总览</a>
+  </div>
+</div>
+
+<div class="page">
+
+  <section class="mock-section" aria-labelledby="mock-a-title">
+    <h2 id="mock-a-title">方案 A · Inspector 分栏</h2>
+    <p class="hint">
+      侧栏选分区 → 列表只显示名称 → 详情区展示一次。顶栏仅 Back，<strong>无下框线</strong>（对齐真实 UI）。
+      Skills 支持增删改查（示意）；Rules / Subagents / Tools 只读。
+    </p>
+    <div class="wb" id="wb-inspector">
+      <div class="topbar">
+        <div class="topbar-side"><button type="button" class="nav-btn on" style="flex:1">← Back to app</button></div>
+        <div class="topbar-main"></div>
+      </div>
+      <div class="grid">
+        <nav class="nav-col" id="section-nav" aria-label="Settings sections"></nav>
+        <div class="split">
+          <div class="list-col">
+            <div class="list-scroll" id="list" role="listbox"></div>
+            <div class="list-foot" id="list-foot" hidden></div>
+          </div>
+          <div class="detail-col" id="detail"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mock-section" aria-labelledby="mock-b-title">
+    <h2 id="mock-b-title">方案 B · 侧栏 + 条目 Frame 展开（p-frame-2）</h2>
+    <p class="hint">
+      <strong>Models / Skills 仍在左侧导航</strong>；主区每条目为 coss
+      <code>Frame → Collapsible → FrameHeader + FramePanel</code>（与
+      <a href="https://coss.com/ui/r/p-frame-2.json">p-frame-2</a>：Header 仅名称 + 一行预览；展开后 FramePanel 展示详情。删除为 <code>Button icon ghost</code>。
+    </p>
+    <div class="wb" id="wb-frame">
+      <div class="topbar">
+        <div class="topbar-side"><button type="button" class="nav-btn on" style="flex:1">← Back to app</button></div>
+        <div class="topbar-main"></div>
+      </div>
+      <div class="grid">
+        <nav class="nav-col" id="section-nav-b" aria-label="Settings sections"></nav>
+        <div class="main-col">
+          <div class="reading-col" id="frame-main"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+const SECTIONS = [
+  { id: "models", label: "Models", group: "Configuration" },
+  { id: "skills", label: "Skills", group: "Customizations" },
+  { id: "rules", label: "Rules", group: "Customizations" },
+  { id: "subagents", label: "Subagents", group: "Abilities" },
+  { id: "tools", label: "Tools", group: "Abilities" },
+];
+
+const ICONS = {
+  models: '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>',
+  skills: '<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5"/>',
+  rules: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  subagents: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
+  tools: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+};
+
+const CHEV = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+const TRASH = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
+
+let skills = [
+  { id: "s1", name: "academic-writing", desc: "润色学术论文，面向 IEEE / Nature 子刊等高水平 STEM 期刊。", refs: ["style-guide.md", "Section Guide"] },
+  { id: "s2", name: "coss", desc: "coss UI 组件实现指引。", refs: [] },
+];
+
+let models = [
+  { id: "m1", name: "mimo-v2.5", model: "mimo-v2.5", base: "https://token-plan-cn.xiaomimimo.com/v1", key: "" },
+  { id: "m2", name: "gpt-4o", model: "gpt-4o", base: "https://api.openai.com/v1", key: "••••" },
+];
+
+const STATIC = {
+  get models() { return models; },
+  rules: [
+    { id: "r1", name: "academic-integrity", desc: "禁止捏造引用与数据；禁止改变作者原意；不确定处必须标注。", path: "plugins/…/integrity.mdc" },
+  ],
+  subagents: [
+    { id: "a1", name: "check", desc: "写入后的机械一致性检查。", tags: ["read-only", "background"] },
+    { id: "a2", name: "researcher", desc: "文献调研与证据收集。", tags: [] },
+  ],
+  tools: [
+    { id: "t1", name: "read_file", desc: "读取工作区文件；虚拟 overlay 优先于磁盘。" },
+  ],
+};
+
+let section = "models";
+let sectionB = "models";
+let selected = {};
+let skillMode = "view";
+/** 方案 B：当前分区内哪条条目 Frame 已展开（item id → bool） */
+const frameItemOpen = {};
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+function items() {
+  if (section === "skills") return skills;
+  if (section === "models") return models;
+  return STATIC[section] || [];
+}
+
+/* —— 方案 A —— */
+function renderNav() {
+  let html = "", lastGroup = "";
+  SECTIONS.forEach(s => {
+    if (s.group !== lastGroup) {
+      html += `<div class="nav-label${lastGroup ? " gap" : ""}">${s.group}</div>`;
+      lastGroup = s.group;
+    }
+    html += `<button type="button" class="nav-btn${section === s.id ? " on" : ""}" data-sec="${s.id}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${ICONS[s.id]}</svg>
+      ${s.label}
+    </button>`;
+  });
+  document.getElementById("section-nav").innerHTML = html;
+  document.getElementById("section-nav").querySelectorAll("[data-sec]").forEach(b => {
+    b.onclick = () => { section = b.dataset.sec; skillMode = "view"; selected[section] = items()[0]?.id; renderInspector(); };
+  });
+}
+
+function renderList() {
+  const list = items();
+  const sel = selected[section] ?? list[0]?.id;
+  selected[section] = sel;
+
+  document.getElementById("list").innerHTML = list.map(it =>
+    `<button type="button" class="list-item${it.id === sel ? " on" : ""}" data-id="${it.id}" role="option" aria-selected="${it.id === sel}">${esc(it.name)}</button>`
+  ).join("") || `<div class="empty" style="padding:16px">暂无条目</div>`;
+
+  document.getElementById("list").querySelectorAll("[data-id]").forEach(b => {
+    b.onclick = () => { selected[section] = b.dataset.id; skillMode = "view"; renderDetail(); renderList(); };
+  });
+
+  const foot = document.getElementById("list-foot");
+  if (section === "models") {
+    foot.hidden = false;
+    foot.innerHTML = `<button type="button" class="btn btn-outline" id="add-model">+ Add Model</button>`;
+    document.getElementById("add-model").onclick = () => { selected.models = "__new__"; renderDetail(); renderList(); };
+  } else if (section === "skills") {
+    foot.hidden = false;
+    foot.innerHTML = `<button type="button" class="btn btn-outline" id="add-skill">+ Add Skill</button>`;
+    document.getElementById("add-skill").onclick = () => { skillMode = "create"; selected.skills = "__new__"; renderDetail(); renderList(); };
+  } else {
+    foot.hidden = true;
+  }
+}
+
+function field(label, id, value, opts = {}) {
+  const tag = opts.area ? "textarea" : "input";
+  const type = opts.type || "text";
+  return `<div class="field"><label for="${id}">${esc(label)}</label>
+    <div class="input-wrap">${tag === "textarea"
+      ? `<textarea id="${id}">${esc(value)}</textarea>`
+      : `<input id="${id}" type="${type}" value="${esc(value)}" ${opts.ph ? `placeholder="${esc(opts.ph)}"` : ""} />`}
+    </div></div>`;
+}
+
+function renderDetail() {
+  const el = document.getElementById("detail");
+  const id = selected[section];
+  const list = items();
+  const item = list.find(x => x.id === id);
+
+  if (section === "models") {
+    const isNew = id === "__new__";
+    const m = isNew ? { model: "", base: "", key: "" } : item;
+    if (!m && !isNew) { el.innerHTML = `<div class="empty">选择模型</div>`; return; }
+    el.innerHTML = `<div class="body">
+      ${field("Model", "m-name", m.model, { ph: "gpt-4o" })}
+      ${field("Base URL", "m-base", m.base, { ph: "https://api.openai.com/v1" })}
+      ${field("API Key", "m-key", m.key, { type: "password", ph: "sk-…" })}
+      <div class="actions">
+        <button type="button" class="btn btn-default">${isNew ? "Add" : "Save"}</button>
+        ${!isNew ? `<button type="button" class="btn btn-outline">Test</button>` : ""}
+        ${!isNew ? `<span class="spacer"></span><button type="button" class="btn btn-ghost">Delete</button>` : `<button type="button" class="btn btn-ghost">Cancel</button>`}
+      </div>
+    </div>`;
+    return;
+  }
+
+  if (section === "skills") {
+    if (skillMode === "create" || id === "__new__") {
+      el.innerHTML = `<div class="body">
+        ${field("Name", "s-name", "", { ph: "my-skill" })}
+        ${field("Description", "s-desc", "", { area: true })}
+        <div class="actions">
+          <button type="button" class="btn btn-default" id="save-new">Create</button>
+          <button type="button" class="btn btn-ghost" id="cancel-new">Cancel</button>
+        </div>
+      </div>`;
+      document.getElementById("cancel-new").onclick = () => { skillMode = "view"; selected.skills = skills[0]?.id; renderInspector(); };
+      document.getElementById("save-new").onclick = () => {
+        const name = document.getElementById("s-name").value.trim() || "new-skill";
+        const desc = document.getElementById("s-desc").value.trim();
+        skills.push({ id: "s" + Date.now(), name, desc, refs: [] });
+        skillMode = "view"; selected.skills = skills[skills.length - 1].id; renderInspector();
+      };
+      return;
+    }
+    if (skillMode === "edit" && item) {
+      el.innerHTML = `<div class="body">
+        ${field("Name", "s-name", item.name)}
+        ${field("Description", "s-desc", item.desc, { area: true })}
+        <div class="actions">
+          <button type="button" class="btn btn-default" id="save-edit">Save</button>
+          <button type="button" class="btn btn-ghost" id="cancel-edit">Cancel</button>
+        </div>
+      </div>`;
+      document.getElementById("cancel-edit").onclick = () => { skillMode = "view"; renderDetail(); };
+      document.getElementById("save-edit").onclick = () => {
+        item.name = document.getElementById("s-name").value.trim() || item.name;
+        item.desc = document.getElementById("s-desc").value.trim();
+        skillMode = "view"; renderInspector();
+      };
+      return;
+    }
+    if (!item) { el.innerHTML = `<div class="empty">选择 Skill</div>`; return; }
+    el.innerHTML = `<div class="body">
+      <p>${esc(item.desc)}</p>
+      ${item.refs.length ? `<div class="links">${item.refs.map(r => `<button type="button" class="linkish mono">${esc(r)}</button>`).join("")}</div>` : ""}
+      <div class="actions">
+        <button type="button" class="btn btn-outline">Open SKILL.md</button>
+        <button type="button" class="btn btn-ghost" id="edit-skill">Edit</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="del-skill">Delete</button>
+      </div>
+    </div>`;
+    document.getElementById("edit-skill").onclick = () => { skillMode = "edit"; renderDetail(); };
+    document.getElementById("del-skill").onclick = () => {
+      skills = skills.filter(s => s.id !== item.id);
+      selected.skills = skills[0]?.id; renderInspector();
+    };
+    return;
+  }
+
+  if (section === "rules" || section === "subagents" || section === "tools") {
+    if (!item) { el.innerHTML = `<div class="empty">选择条目</div>`; return; }
+    const tags = item.tags?.length ? `<div class="tag-row">${item.tags.map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : "";
+    const open = item.path ? `<button type="button" class="btn btn-outline">Open file</button>` : "";
+    el.innerHTML = `<div class="body">
+      ${tags}
+      <p>${esc(item.desc)}</p>
+      ${open ? `<div class="actions">${open}</div>` : ""}
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="empty">选择条目</div>`;
+}
+
+function renderInspector() { renderNav(); renderList(); renderDetail(); }
+
+/* —— 方案 B：侧栏 + 条目级 Frame —— */
+const SECTION_COPY = {
+  models: { title: "Models", desc: "Manage your model pool. Select which model to use in the chat area." },
+  skills: { title: "Skills", desc: "Capabilities loaded at startup. Each skill bundles reference knowledge." },
+  rules: { title: "Rules", desc: "Hard constraints that the agent must always follow." },
+  subagents: { title: "Subagents", desc: "Specialist agents invoked by skills for focused tasks." },
+  tools: { title: "Tools", desc: "Built-in capabilities available to the agent." },
+};
+
+function itemsB() {
+  if (sectionB === "skills") return skills;
+  if (sectionB === "models") return models;
+  return STATIC[sectionB] || [];
+}
+
+function renderNavB() {
+  let html = "", lastGroup = "";
+  SECTIONS.forEach(s => {
+    if (s.group !== lastGroup) {
+      html += `<div class="nav-label${lastGroup ? " gap" : ""}">${s.group}</div>`;
+      lastGroup = s.group;
+    }
+    html += `<button type="button" class="nav-btn${sectionB === s.id ? " on" : ""}" data-sec="${s.id}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${ICONS[s.id]}</svg>
+      ${s.label}
+    </button>`;
+  });
+  const nav = document.getElementById("section-nav-b");
+  nav.innerHTML = html;
+  nav.querySelectorAll("[data-sec]").forEach(b => {
+    b.onclick = () => {
+      sectionB = b.dataset.sec;
+      Object.keys(frameItemOpen).forEach(k => { delete frameItemOpen[k]; });
+      renderFrame();
+    };
+  });
+}
+
+function itemFrame(itemId, headerLabel, preview, panelHtml, opts = {}) {
+  const open = Boolean(frameItemOpen[itemId]);
+  const del = opts.deletable
+    ? `<button type="button" class="btn btn-icon btn-ghost" data-del="${itemId}" aria-label="Delete">${TRASH}</button>`
+    : "";
+  const previewLine = preview
+    ? `<span class="frame-trigger-preview">${esc(preview)}</span>`
+    : "";
+  return `<div class="frame" data-slot="frame">
+    <div class="coss-collapsible" data-item="${itemId}"${open ? ' data-panel-open' : ''}>
+      <header class="frame-header-row" data-slot="frame-panel-header">
+        <button type="button" class="btn btn-ghost frame-collapsible-trigger" aria-expanded="${open}">
+          ${CHEV}
+          <span class="frame-trigger-body">
+            <span class="frame-header-label">${esc(headerLabel)}</span>
+            ${previewLine}
+          </span>
+        </button>
+        ${del}
+      </header>
+      <div class="coss-collapsible-panel" data-slot="collapsible-panel">
+        <div class="coss-collapsible-panel-inner">
+          <div class="frame-panel" data-slot="frame-panel">${panelHtml}</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function modelItemPanel(m) {
+  return `${field("Model", `fm-${m.id}`, m.model, { ph: "gpt-4o" })}
+    ${field("Base URL", `fb-${m.id}`, m.base)}
+    ${field("API Key", `fk-${m.id}`, m.key, { type: "password", ph: "sk-…" })}
+    <div class="actions">
+      <button type="button" class="btn btn-default btn-sm" data-save-model="${m.id}">Save</button>
+      <button type="button" class="btn btn-outline btn-sm">Test</button>
+    </div>`;
+}
+
+function skillItemPanel(s) {
+  return `<p class="frame-panel-desc">${esc(s.desc)}</p>
+    ${s.refs.length ? `<div class="section-label">Reference files</div>
+      <div class="ref-list">${s.refs.map(r => `<button type="button" class="btn btn-ghost btn-linkish">${esc(r)}</button>`).join("")}</div>` : ""}
+    <div class="actions">
+      <button type="button" class="btn btn-outline btn-sm">View SKILL.md</button>
+      <button type="button" class="btn btn-ghost btn-sm">Edit</button>
+    </div>`;
+}
+
+function ruleItemPanel(r) {
+  return `<p class="frame-panel-desc">${esc(r.desc)}</p>
+    <div class="actions"><button type="button" class="btn btn-outline btn-sm">Open file</button></div>`;
+}
+
+function subagentItemPanel(a) {
+  const tags = a.tags?.length
+    ? `<div class="tag-row">${a.tags.map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>`
+    : "";
+  return `${tags}<p class="frame-panel-desc">${esc(a.desc)}</p>`;
+}
+
+function toolItemPanel(t) {
+  return `<p class="frame-panel-desc">${esc(t.desc)}</p>`;
+}
+
+function previewLine(text, max = 72) {
+  if (!text) return "";
+  const t = String(text).replace(/\s+/g, " ").trim();
+  return t.length > max ? t.slice(0, max) + "…" : t;
+}
+
+function renderFrameMain() {
+  const meta = SECTION_COPY[sectionB];
+  const list = itemsB();
+  const canAdd = sectionB === "models" || sectionB === "skills";
+
+  let frames = "";
+  if (sectionB === "models") {
+    frames = list.map(m => itemFrame(
+      m.id, m.name, previewLine(m.base),
+      modelItemPanel(m), { deletable: true }
+    )).join("");
+  } else if (sectionB === "skills") {
+    frames = list.map(s => itemFrame(
+      s.id, s.name, previewLine(s.desc),
+      skillItemPanel(s), { deletable: true }
+    )).join("");
+  } else if (sectionB === "rules") {
+    frames = list.map(r => itemFrame(
+      r.id, r.name, previewLine(r.desc),
+      ruleItemPanel(r)
+    )).join("");
+  } else if (sectionB === "subagents") {
+    frames = list.map(a => itemFrame(
+      a.id, a.name, previewLine(a.desc),
+      subagentItemPanel(a)
+    )).join("");
+  } else if (sectionB === "tools") {
+    frames = list.map(t => itemFrame(
+      t.id, t.name, previewLine(t.desc),
+      toolItemPanel(t)
+    )).join("");
+  }
+
+  const root = document.getElementById("frame-main");
+  root.innerHTML = `
+    <div class="page-hd">
+      <div>
+        <h1>${esc(meta.title)}</h1>
+        <p>${esc(meta.desc)}</p>
+      </div>
+      ${canAdd ? `<button type="button" class="btn btn-outline btn-sm" id="add-entry-b">+ Add ${sectionB === "models" ? "Model" : "Skill"}</button>` : ""}
+    </div>
+    <div class="frame-stack">${frames || `<div class="empty">暂无条目</div>`}</div>`;
+
+  document.getElementById("add-entry-b")?.addEventListener("click", () => {
+    const id = (sectionB === "models" ? "m" : "s") + Date.now();
+    Object.keys(frameItemOpen).forEach(k => { delete frameItemOpen[k]; });
+    if (sectionB === "models") {
+      models.push({ id, name: "new-model", model: "", base: "", key: "" });
+    } else {
+      skills.push({ id, name: "new-skill", desc: "", refs: [] });
+    }
+    frameItemOpen[id] = true;
+    renderFrame();
+  });
+
+  root.querySelectorAll(".coss-collapsible").forEach(block => {
+    const id = block.dataset.item;
+    block.querySelector(".frame-collapsible-trigger").onclick = () => {
+      const next = !frameItemOpen[id];
+      Object.keys(frameItemOpen).forEach(k => { delete frameItemOpen[k]; });
+      if (next) frameItemOpen[id] = true;
+      renderFrameMain();
+    };
+    block.querySelector("[data-del]")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (sectionB === "models") {
+        models = models.filter(m => m.id !== id);
+      } else if (sectionB === "skills") {
+        skills = skills.filter(s => s.id !== id);
+      }
+      delete frameItemOpen[id];
+      renderFrame();
+    });
+    block.querySelector(`[data-save-model="${id}"]`)?.addEventListener("click", () => {
+      const m = models.find(x => x.id === id);
+      if (!m) return;
+      m.model = document.getElementById(`fm-${id}`)?.value.trim() || m.model;
+      m.base = document.getElementById(`fb-${id}`)?.value.trim() || m.base;
+      m.key = document.getElementById(`fk-${id}`)?.value ?? m.key;
+      m.name = m.model || m.name;
+      renderFrameMain();
+    });
+  });
+}
+
+function renderFrame() { renderNavB(); renderFrameMain(); }
+
+function boot() {
+  selected.models = models[0].id;
+  selected.skills = skills[0].id;
+  selected.rules = STATIC.rules[0].id;
+  selected.subagents = STATIC.subagents[0].id;
+  selected.tools = STATIC.tools[0].id;
+  frameItemOpen[models[0].id] = true;
+  renderInspector();
+  renderFrame();
+  document.getElementById("theme-btn").onclick = () => document.documentElement.classList.toggle("dark");
+}
+
+try {
+  boot();
+} catch (err) {
+  const box = document.getElementById("boot-error");
+  box.hidden = false;
+  box.textContent = "Mockup 脚本错误：\n" + (err && err.stack ? err.stack : String(err));
+  console.error(err);
+}
+</script>
+</body>
+</html>
