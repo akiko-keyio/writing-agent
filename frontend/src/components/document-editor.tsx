@@ -4,14 +4,18 @@ import {
   useEffect,
   useImperativeHandle,
   useRef,
+  useState,
   type RefObject,
 } from "react"
-import { EditorContent, useEditor, type Editor } from "@tiptap/react"
+import { createPortal } from "react-dom"
+import { EditorContent, Extension, useEditor, type Editor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import { Markdown } from "@tiptap/markdown"
 import TableOfContents, {
   type TableOfContentData,
 } from "@tiptap/extension-table-of-contents"
+import { Plugin, PluginKey } from "@tiptap/pm/state"
+import { Decoration, DecorationSet } from "@tiptap/pm/view"
 
 import { selectionToLineRange } from "@/lib/chat-context-label"
 import {
@@ -36,6 +40,15 @@ export type DocumentEditorHandle = {
   getMarkdown: () => string
   scrollToHeading: (id: string) => void
   setMarkdown: (markdown: string) => void
+  /** Locate plain text in the document, select it, and scroll it into view. */
+  scrollToText: (text: string) => boolean
+}
+
+export type EditHighlight = {
+  id: string
+  /** Plain text to locate in the document (old_text, or insertion anchor). */
+  text: string
+  stale?: boolean
 }
 
 export interface DocumentEditorProps {
@@ -45,6 +58,66 @@ export interface DocumentEditorProps {
   onTocUpdate?: (entries: DocumentTocEntry[]) => void
   onMarkdownChange?: (markdown: string) => void
   onSelectionChange?: (selection: EditorSelection | null) => void
+  /** Proposed edit anchors to decorate in the document. */
+  editHighlights?: EditHighlight[]
+  /** Add the current selection to the chat as a context attachment. */
+  onAddSelectionToChat?: (selection: EditorSelection) => void
+}
+
+const editHighlightKey = new PluginKey<DecorationSet>("editHighlight")
+
+type HighlightSpan = { from: number; to: number; stale: boolean }
+
+/** ProseMirror plugin that renders inline decorations for proposed edits. */
+const EditHighlightExtension = Extension.create({
+  name: "editHighlight",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin<DecorationSet>({
+        key: editHighlightKey,
+        state: {
+          init: () => DecorationSet.empty,
+          apply(tr, old) {
+            const meta = tr.getMeta(editHighlightKey) as HighlightSpan[] | undefined
+            if (meta) {
+              const decos = meta.map((s) =>
+                Decoration.inline(s.from, s.to, {
+                  class: s.stale ? "edit-anchor edit-anchor-stale" : "edit-anchor",
+                }),
+              )
+              return DecorationSet.create(tr.doc, decos)
+            }
+            return old.map(tr.mapping, tr.doc)
+          },
+        },
+        props: {
+          decorations(state) {
+            return editHighlightKey.getState(state)
+          },
+        },
+      }),
+    ]
+  },
+})
+
+/** First plain-text match of ``needle`` within a single text node. */
+function findTextSpan(
+  editor: Editor,
+  needle: string,
+): { from: number; to: number } | null {
+  const trimmed = needle.trim()
+  if (!trimmed) return null
+  const matches: { from: number; to: number }[] = []
+  editor.state.doc.descendants((node, pos) => {
+    if (matches.length || !node.isText || !node.text) return undefined
+    const idx = node.text.indexOf(trimmed)
+    if (idx >= 0) {
+      matches.push({ from: pos + idx, to: pos + idx + trimmed.length })
+      return false
+    }
+    return undefined
+  })
+  return matches[0] ?? null
 }
 
 const TOC_UPDATE_DEBOUNCE_MS = 150
@@ -107,9 +180,18 @@ export const DocumentEditor = forwardRef<
     onTocUpdate,
     onMarkdownChange,
     onSelectionChange,
+    editHighlights,
+    onAddSelectionToChat,
   },
   ref,
 ) {
+  const [selectionToolbar, setSelectionToolbar] = useState<{
+    left: number
+    top: number
+    selection: EditorSelection
+  } | null>(null)
+  const onAddSelectionRef = useRef(onAddSelectionToChat)
+  onAddSelectionRef.current = onAddSelectionToChat
   const normalizedContent = normalizeMarkdownHeadings(content)
   const normalizedContentRef = useRef(normalizedContent)
   normalizedContentRef.current = normalizedContent
@@ -155,6 +237,7 @@ export const DocumentEditor = forwardRef<
       extensions: [
         StarterKit,
         Markdown,
+        EditHighlightExtension,
         TableOfContents.configure({
           getId: tocHeadingIdFromTitle,
           scrollParent: () =>
@@ -193,19 +276,33 @@ export const DocumentEditor = forwardRef<
           const { from, to } = ed.state.selection
           if (from === to) {
             onSelectionChangeRef.current?.(null)
+            setSelectionToolbar(null)
             return
           }
           const startLine = ed.state.doc.textBetween(0, from, "\n", "\n")
           const endLine = ed.state.doc.textBetween(0, to, "\n", "\n")
           const lines = selectionToLineRange(startLine, endLine)
-          onSelectionChangeRef.current?.({
+          const selection: EditorSelection = {
             from,
             to,
             text: ed.state.doc.textBetween(from, to, " "),
             startLine: lines.startLine,
             endLine: lines.endLine,
             filePath,
-          })
+          }
+          onSelectionChangeRef.current?.(selection)
+          if (onAddSelectionRef.current) {
+            try {
+              const start = ed.view.coordsAtPos(from)
+              setSelectionToolbar({
+                left: Math.round(start.left),
+                top: Math.round(start.top - 8),
+                selection,
+              })
+            } catch {
+              setSelectionToolbar(null)
+            }
+          }
         }, SELECTION_UPDATE_DEBOUNCE_MS)
       },
     },
@@ -227,6 +324,20 @@ export const DocumentEditor = forwardRef<
       // Editor may be mid-teardown under React Strict Mode.
     }
   }, [editor, normalizedContent, publishToc])
+
+  // Recompute proposed-edit decorations when the anchors or document change.
+  useEffect(() => {
+    if (!isEditorLive(editor)) return
+    const spans = (editHighlights ?? [])
+      .map((h) => {
+        const span = findTextSpan(editor, h.text)
+        return span ? { from: span.from, to: span.to, stale: !!h.stale } : null
+      })
+      .filter((s): s is { from: number; to: number; stale: boolean } => s != null)
+    const tr = editor.state.tr.setMeta(editHighlightKey, spans)
+    tr.setMeta("addToHistory", false)
+    editor.view.dispatch(tr)
+  }, [editor, editHighlights, normalizedContent])
 
   useEffect(() => {
     return () => {
@@ -271,6 +382,23 @@ export const DocumentEditor = forwardRef<
 
         heading.scrollIntoView({ behavior: "smooth", block: "start" })
       },
+      scrollToText: (text: string) => {
+        if (!isEditorLive(editor)) return false
+        const span = findTextSpan(editor, text)
+        if (!span) return false
+        editor.chain().focus().setTextSelection(span).run()
+        const domAt = editor.view.domAtPos(span.from)
+        const node = domAt?.node
+        const el =
+          node instanceof HTMLElement ? node : (node?.parentElement ?? null)
+        const scrollParent = scrollParentRef.current
+        if (el && scrollParent) {
+          scrollElementIntoScrollParent(el, scrollParent)
+        } else if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" })
+        }
+        return true
+      },
     }),
     [editor, content, scrollParentRef],
   )
@@ -280,6 +408,27 @@ export const DocumentEditor = forwardRef<
   return (
     <div className={documentEditorShellClass}>
       <EditorContent editor={editor} />
+      {selectionToolbar && onAddSelectionToChat
+        ? createPortal(
+            <div
+              className="fixed z-50 -translate-x-1/2 -translate-y-full"
+              style={{ left: selectionToolbar.left, top: selectionToolbar.top }}
+            >
+              <button
+                type="button"
+                className="rounded-full border border-border bg-popover px-3 py-1 text-xs font-medium text-popover-foreground shadow-md hover:bg-accent"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  onAddSelectionToChat(selectionToolbar.selection)
+                  setSelectionToolbar(null)
+                }}
+              >
+                Add to Chat
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 })

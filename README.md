@@ -1,48 +1,67 @@
 # Writing Agent
 
-一个智能写作 Agent IDE：在干净文档中写作，通过右侧 Chat 与 LLM 协作改稿（直接 patch，无分组 Review 面板）。
+A writing IDE where an LLM **proposes** structured edits, the **backend validates and owns** the typed state, and the user reviews, applies, and saves changes. The agent can read project files, propose coherent edit groups, run specialist review workflows, remember accepted preferences, and expose model/tool/subagent settings.
 
-## 功能特性
+Core principle:
 
-- **Agent IDE 壳层**：顶栏、Explorer（文件树 + 大纲）、多标签编辑区、Chat 面板
-- **WebSocket Agent**：Python 服务（`:8765`），OpenAI 兼容 API
-- **Chat 改稿**：用户发起对话 → Agent 回复并可选 `document/patch` 写入编辑器
-- **上下文**：当前文件、编辑器选区、`@` 提及工作区中的 `.md` 文件
-- **工作区**：内置项目 API 或本地文件夹（File System Access API）
-- **保存 / 导出**：File 菜单 Save、Export `.md`
-- **会话**：Chat 历史存 localStorage；新对话清空 Agent 会话
+```
+LLM proposes.
+Backend validates and owns typed state.
+Frontend renders and lets users act.
+```
 
-## 技术栈
+The document is never mutated by the LLM directly. Every change flows through:
 
-- **前端**：React + Vite + TypeScript + TipTap（Markdown）
-- **UI**：[coss ui](https://coss.com/ui)
-- **Agent**：Python + websockets + OpenAI SDK（uv）
+```
+propose_edit_group -> backend validates anchors -> EditGroup stored
+-> apply updates the open buffer -> document/save writes the .md file
+```
 
-## 快速开始
+## Features
 
-### 1. 配置 LLM
+- **IDE shell** — top bar, Explorer (file tree + outline), document tabs, right-hand Chat column.
+- **Pinned Review Queue** — proposed edit groups appear as action cards above the chat stream (not as chat messages, not as a floating overlay). Apply / Reject / Delete, with stale detection when the document changes.
+- **EditGroup lifecycle** — replace / delete / insert edits, content-anchored validation (prefix/suffix/heading), offset-independent apply, partial-apply, and replace lineage (`replaces` / `replaced_by`).
+- **Save to disk** — `document/save` writes the current buffer atomically (temp file + rename). Applying changes the buffer; saving is a separate, explicit step.
+- **Durable state** — sessions, edit groups, and memory persist under `.writing-agent/` and survive backend restart.
+- **Cancellable chat turns** — each turn carries a `request_id`; the connection can process `chat/cancel` while a turn streams.
+- **Memory** — accepted / rejected / replaced edits become visible, controllable memory examples (positive / negative / preference), scoped into principle / knowledge / example. Memory is inspectable state, not hidden prompt state, and can be disabled.
+- **Single Agent mode** — one agent decides when to discuss, read files, check, gather evidence, or propose edits. There is no Ask/Edit mode toggle and no global review/council mode.
+- **Specialists (agent-as-tool), kept minimal** — only where isolated context clearly helps: `review` (independent target-reader perspective) and `researcher` (evidence from the local reference base only — no downloads). Mechanical checking is a deterministic `check_consistency` tool; the main agent proposes edits directly (no separate editor subagent).
+- **Settings** — a special document tab to manage models (CRUD + active model), tools, subagents, and memory; API keys are masked. Temperature is an internal default and is not user-exposed.
+- **Selection → chat** — select text in the editor and "Add to Chat" to attach it as a removable context chip; mentions and selections are sent as structured context.
+- **Eval harness** — deterministic smoke suite proves the edit pipeline without a live model.
 
-复制根目录 `.env.example` 为 `.env` 并填写 API Key：
+## Tech stack
+
+- **Frontend**: React 19 + Vite + TypeScript + TipTap (Markdown), [coss ui](https://coss.com/ui) + Nexus UI chat parts.
+- **Backend**: Python + websockets + [Strands Agents](https://github.com/strands-agents) + OpenAI-compatible API (managed with `uv`).
+
+## Quick start
+
+### 1. Configure a model
+
+Copy `.env.example` to `.env` at the repo root and set your key (or configure a model from the in-app Settings tab on first run):
 
 ```bash
 cp .env.example .env
 ```
 
-### 2. 一键启动（推荐）
+`models.yaml` and `.writing-agent/` hold local secret/state and are git-ignored.
 
-在仓库根目录：
+### 2. One command (recommended)
 
 ```bash
-npm install          # 首次：安装 concurrently
+npm install                         # first time: installs concurrently
 cd frontend && pnpm install && cd ..
-npm run dev          # 同时启动 Agent :8765 + 前端 :5173
+npm run dev                         # Agent :8765 + frontend :5173
 ```
 
-浏览器打开 `http://localhost:5173`。Chat 面板顶部显示 **Connected** 即表示 WebSocket 已接通。
+Open `http://localhost:5173`. The chat header shows **Connected** when the WebSocket is up.
 
-### 2b. 分开启动
+### 3. Run separately
 
-**Agent**（`ws://localhost:8765`）：
+Backend (`ws://localhost:8765`):
 
 ```bash
 cd agent
@@ -50,7 +69,7 @@ uv sync
 uv run python main.py
 ```
 
-**前端**（Vite 将 `/ws` 代理到 Agent）：
+Frontend (Vite proxies `/ws` to the agent):
 
 ```bash
 cd frontend
@@ -58,33 +77,83 @@ pnpm install
 pnpm dev
 ```
 
-### 3. 使用
+## Demo script
 
-浏览器打开 `http://localhost:5173`，打开 `examples/test-text.md`，在 Chat 中描述想要的修改（例如：「把 utilize 改成 use」）。
+1. Open `examples/test-text.md`.
+2. Open the **Settings** tab; confirm Models / Tools / Subagents / Skills / Rules render. Set an active model if needed.
+3. Back on the document, ask the agent: *"Improve the introduction's clarity."*
+4. Watch the tool trace (`read_file`, specialists, `propose_edit_group`).
+5. An **edit group** appears in the pinned **Review Queue** (not as a chat message).
+6. Inspect the rationale, then **Apply** — the editor buffer updates.
+7. Click **Save** — the underlying `.md` file changes on disk.
+8. Edit the document so an outstanding edit no longer matches — its card becomes **Stale**.
+9. Restart the backend — session, edit groups, and memory are restored.
 
-协议说明见 [docs/agent-ide-protocol.md](docs/agent-ide-protocol.md)。
+## Testing
 
-## 项目结构
-
-```
-writing-agent/
-├── agent/                 # Python WebSocket + LLM
-├── frontend/              # React IDE
-├── examples/              # 示例 Markdown
-├── docs/
-│   ├── agent-ide-protocol.md
-│   ├── writing-agent-design.md
-│   └── writing-agent-spec.md   # 含 Review 规格（当前实现走 Chat-First）
-└── .env
-```
-
-## 开发
+Backend (deterministic; no live model):
 
 ```bash
-cd agent && uv run pytest
-cd frontend && pnpm exec tsc --noEmit && pnpm run build
+cd agent
+uv run pytest -q
 ```
 
-## 许可证
+Eval smoke suite:
+
+```bash
+cd agent
+uv run python -m evals.runner --suite smoke
+```
+
+End-to-end WebSocket smoke (real server, no live model):
+
+```bash
+cd agent
+uv run python scripts/ws_smoke.py
+```
+
+Frontend build gate:
+
+```bash
+cd frontend
+pnpm run build
+```
+
+Browser smoke checklist: see [`docs/browser-smoke.md`](docs/browser-smoke.md).
+
+Live integration tests are opt-in (require a running server + model):
+
+```bash
+cd agent
+uv run pytest -m integration
+```
+
+## Architecture
+
+```
+frontend (React)          tabs / editor / chat / Review Queue / settings
+        │  typed WebSocket protocol (TS <-> Python)
+application handlers       session / chat / settings / review / memory
+domain services           SessionStore / EditGroupService / MemoryStore / EvalRunner
+agent orchestration       WritingAgentRunner / Strands Agent / review + researcher specialists
+tools                     read_file / check_consistency / search_references / propose_edit_group
+filesystem                project files / .writing-agent state / plugin markdown
+```
+
+State ownership: the backend owns session, buffers, edit groups, memory, settings, and registry. The frontend renders backend state. The LLM only produces proposals, which the backend validates before they become state.
+
+The authoritative design and execution plan live in [`handoff/`](handoff/). `docs/` is historical source context.
+
+## Known limitations
+
+- Save is final for MVP; rely on filesystem/VCS history for rollback after save.
+- Retrieval is lexical (`search_references` over a `references/` directory); no vector RAG, and no live paper download / DOI fetch. The `researcher` works only from the local reference base.
+- Evidence classification (`verification.classify_claim`) is a deterministic, conservative reference implementation used by evals; it is not wired as a live LLM subagent.
+- Review is group-level (apply / reject / delete). Per-edit accept/adjust is supported in the backend (`group/replace_edit`) but the MVP UI acts at the group level.
+- Composer context chips are created from in-editor selection ("Add to Chat") and `@mentions`. Dragging an Explorer file into the composer is not yet wired (the file-tree drag payload is owned by the tree library); PDF/DOCX import is future work.
+- Cancellation stops *forwarding* late deltas; the model may still finish server-side.
+- Multi-agent orchestration uses agent-as-tool, not graph/swarm; there is no global review/council mode.
+
+## License
 
 MIT

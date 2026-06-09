@@ -14,9 +14,29 @@ import { HugeiconsIcon } from "@/lib/icons"
 import { shell } from "@/lib/shell-chrome"
 import { cn } from "@/lib/utils"
 
-function modelDisplayName(model: ModelEntryData) {
-  const name = model.model.trim()
-  return name.length > 0 ? name : "Unnamed model"
+function endpointHost(base: string): string {
+  const trimmed = base.trim()
+  if (!trimmed) return ""
+  try {
+    return new URL(trimmed).host
+  } catch {
+    return trimmed.replace(/^https?:\/\//, "").split("/")[0] ?? ""
+  }
+}
+
+/** Readable label: provider + model, falling back to endpoint host or id. */
+export function modelDisplayName(model: ModelEntryData): string {
+  const name = model.model?.trim() ?? ""
+  const provider = model.provider?.trim() ?? ""
+  if (name) {
+    if (provider && !name.toLowerCase().includes(provider.toLowerCase())) {
+      return `${provider} · ${name}`
+    }
+    return name
+  }
+  const host = endpointHost(model.api_base ?? "")
+  if (host) return host
+  return model.id || "Unnamed model"
 }
 
 function AddModelsMenuItem({

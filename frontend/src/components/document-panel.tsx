@@ -1,13 +1,16 @@
-import { forwardRef, useRef } from "react"
+import { forwardRef, useLayoutEffect, useRef } from "react"
 
 import {
   DocumentEditor,
   type DocumentEditorHandle,
+  type EditHighlight,
   type EditorSelection,
 } from "@/components/document-editor"
 import { SettingsContent, type SettingsSection } from "@/components/settings-editor"
+import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type {
+  MemoryData,
   ModelEntryData,
   PluginsData,
   SettingsConfigData,
@@ -35,7 +38,17 @@ interface DocumentPanelProps {
   onAddModel?: (model: Omit<ModelEntryData, "api_key_masked"> & { api_key?: string }) => void
   onUpdateModel?: (modelId: string, updates: Partial<ModelEntryData> & { api_key?: string }) => void
   onRemoveModel?: (modelId: string) => void
+  onSetActiveModel?: (modelId: string) => void
   onSetToolEnabled?: (toolId: string, enabled: boolean) => void
+  onSetSubagentEnabled?: (name: string, enabled: boolean) => void
+  settingsMemory?: MemoryData | null
+  settingsMemoryEnabled?: boolean
+  onSetMemoryEnabled?: (enabled: boolean) => void
+  onDeleteMemory?: (id: string) => void
+  onClearMemory?: () => void
+  onSave?: () => void
+  editHighlights?: EditHighlight[]
+  onAddSelectionToChat?: (selection: EditorSelection) => void
 }
 
 export const DocumentPanel = forwardRef<DocumentEditorHandle, DocumentPanelProps>(
@@ -57,12 +70,32 @@ export const DocumentPanel = forwardRef<DocumentEditorHandle, DocumentPanelProps
       onAddModel,
       onUpdateModel,
       onRemoveModel,
+      onSetActiveModel,
       onSetToolEnabled,
+      onSetSubagentEnabled,
+      settingsMemory,
+      settingsMemoryEnabled,
+      onSetMemoryEnabled,
+      onDeleteMemory,
+      onClearMemory,
+      onSave,
+      editHighlights,
+      onAddSelectionToChat,
     },
     ref
   ) {
+    const scrollAreaHostRef = useRef<HTMLDivElement>(null)
     const documentScrollRef = useRef<HTMLDivElement>(null)
     const isSettingsTab = activePath === SETTINGS_PATH
+
+    useLayoutEffect(() => {
+      const viewport = scrollAreaHostRef.current?.querySelector(
+        '[data-slot="scroll-area-viewport"]',
+      )
+      if (viewport instanceof HTMLDivElement) {
+        documentScrollRef.current = viewport
+      }
+    }, [activePath, documentLoading])
 
     if (isSettingsTab) {
       return (
@@ -79,7 +112,14 @@ export const DocumentPanel = forwardRef<DocumentEditorHandle, DocumentPanelProps
               onAddModel={onAddModel}
               onUpdateModel={onUpdateModel}
               onRemoveModel={onRemoveModel}
+              onSetActiveModel={onSetActiveModel}
               onSetToolEnabled={onSetToolEnabled}
+              onSetSubagentEnabled={onSetSubagentEnabled}
+              memory={settingsMemory}
+              memoryEnabled={settingsMemoryEnabled}
+              onSetMemoryEnabled={onSetMemoryEnabled}
+              onDeleteMemory={onDeleteMemory}
+              onClearMemory={onClearMemory}
             />
           </main>
         </div>
@@ -89,10 +129,24 @@ export const DocumentPanel = forwardRef<DocumentEditorHandle, DocumentPanelProps
     return (
       <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
         <main className="chrome-editor-surface relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          {activePath && onSave ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="absolute right-3 top-3 z-10"
+              onClick={onSave}
+            >
+              Save
+            </Button>
+          ) : null}
+          <div
+            ref={scrollAreaHostRef}
+            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+          >
           <ScrollArea
             className="min-h-0 min-w-0 flex-1"
             scrollFade
-            viewportRef={documentScrollRef}
           >
             {documentLoading ? (
               <p className={cn(p[12].x, p[8].top, "text-muted-foreground")}>
@@ -108,6 +162,8 @@ export const DocumentPanel = forwardRef<DocumentEditorHandle, DocumentPanelProps
                 onTocUpdate={onTocUpdate}
                 onMarkdownChange={onMarkdownChange}
                 onSelectionChange={onSelectionChange}
+                editHighlights={editHighlights}
+                onAddSelectionToChat={onAddSelectionToChat}
               />
             ) : (
               <p className={cn(p[12].x, p[8].top, "text-muted-foreground")}>
@@ -115,6 +171,7 @@ export const DocumentPanel = forwardRef<DocumentEditorHandle, DocumentPanelProps
               </p>
             )}
           </ScrollArea>
+          </div>
         </main>
       </div>
     )

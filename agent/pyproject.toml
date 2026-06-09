@@ -16,9 +16,12 @@ dependencies = [
 writing-agent = "main:main"
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = [".", "tests"]
+# Default gate is deterministic: live-LLM / live-server integration tests are
+# opt-in via `uv run pytest -m integration`.
+addopts = "-m 'not integration'"
 markers = [
-    "integration: live WebSocket server required",
+    "integration: live WebSocket server and/or live model required",
 ]
 
 [tool.uv]

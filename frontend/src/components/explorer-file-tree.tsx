@@ -312,8 +312,6 @@ const ExplorerTreeNode = memo(function ExplorerTreeNode(
     activePath,
     onOpenFile,
     onPrefetchFile,
-    onCreateFile,
-    onCreateFolder,
     onRenameFile,
     onCopyFileFolderPath,
     onOpenFileFolder,

@@ -5,7 +5,6 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import type { ExplorerView } from "@/components/canvas-chrome"
-import { ShellTooltipIconButton } from "@/components/chrome-toolbar-button"
 import { shell } from "@/lib/shell-chrome"
 import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs"
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"

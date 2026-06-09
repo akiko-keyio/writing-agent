@@ -17,9 +17,14 @@ type ChromeInlineScrollProps = {
   style?: CSSProperties
   /** Cap height; vertical thumb appears when content exceeds (e.g. tool output). */
   maxHeight?: string | number
+  /** Accepted for API compat; coss ScrollArea always renders both axes. */
+  horizontalScroll?: boolean
   /** Keep vertical scroll pinned to bottom while content grows (e.g. streaming trace). */
   autoScrollBottom?: boolean
-} & Omit<ComponentProps<typeof ScrollArea>, "children" | "className" | "style">
+} & Omit<
+  ComponentProps<typeof ScrollArea>,
+  "children" | "className" | "style" | "horizontalScroll"
+>
 
 /**
  * Block-level horizontal (and optional vertical) scroll with coss ScrollArea thumbs.
@@ -30,7 +35,7 @@ export function ChromeInlineScroll({
   children,
   maxHeight,
   style,
-  horizontalScroll = true,
+  horizontalScroll: _horizontalScroll = true,
   scrollbarGutter = true,
   autoScrollBottom = false,
   ...props
@@ -65,7 +70,6 @@ export function ChromeInlineScroll({
           "max-w-full min-h-0",
           capped ? "h-full max-h-full" : "size-full",
         )}
-        horizontalScroll={horizontalScroll}
         scrollbarGutter={scrollbarGutter}
         {...props}
       >

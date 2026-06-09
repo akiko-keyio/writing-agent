@@ -3,7 +3,7 @@
  */
 
 import { contentBoxLaneClass, contentTextLaneClass } from "@/lib/content-layout"
-import { p, stack } from "@/lib/spacing"
+import { p } from "@/lib/spacing"
 import { cn } from "@/lib/utils"
 
 export const chatMarkdownBodyClass =

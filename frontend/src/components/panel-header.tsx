@@ -2,7 +2,6 @@ import type { ReactNode } from "react"
 import type { IconSvgElement } from "@hugeicons/react"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { ShellTooltipIconButton } from "@/components/chrome-toolbar-button"
 import { shell } from "@/lib/shell-chrome"
 import { cn } from "@/lib/utils"
 

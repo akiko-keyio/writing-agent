@@ -17,13 +17,19 @@ WS_URL = os.getenv("WRITING_AGENT_WS_URL") or _DEFAULT_WS
 
 
 async def _recv_until(types: set[str], ws: websockets.ClientConnection, limit: int = 8):
+    # Streaming deltas (reasoning/text) do not count toward the limit; only
+    # discrete control frames do, so verbose reasoning cannot exhaust the budget.
+    _streaming = {"chat/reasoning_delta", "chat/message_delta"}
     seen: list[dict] = []
-    for _ in range(limit):
-        raw = await asyncio.wait_for(ws.recv(), timeout=5)
+    budget = limit
+    while budget > 0:
+        raw = await asyncio.wait_for(ws.recv(), timeout=10)
         msg = json.loads(raw)
         seen.append(msg)
         if msg.get("type") in types:
             return msg, seen
+        if msg.get("type") not in _streaming:
+            budget -= 1
     raise AssertionError(f"Expected one of {types}, got {seen}")
 
 

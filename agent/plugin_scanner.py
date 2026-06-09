@@ -59,6 +59,9 @@ def _scan_skill(skill_dir: Path) -> dict | None:
 
 def _scan_subagents(agents_dir: Path, plugin_id: str) -> list[dict]:
     """Parse subagent specs using the existing loader."""
+    from subagent_manager import load_subagent_prefs
+
+    prefs = load_subagent_prefs()
     specs = load_subagent_specs(agents_dir)
     items: list[dict] = []
     for spec in specs:
@@ -72,6 +75,7 @@ def _scan_subagents(agents_dir: Path, plugin_id: str) -> list[dict]:
                 "preview": spec.system_prompt[:300],
                 "readonly": spec.readonly,
                 "is_background": spec.is_background,
+                "enabled": prefs.get(spec.name, True),
             }
         )
     return items

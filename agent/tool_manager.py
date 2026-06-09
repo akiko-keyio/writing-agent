@@ -29,6 +29,30 @@ TOOL_CATALOG: tuple[ToolCatalogEntry, ...] = (
             "Open editor buffers take priority over files on disk."
         ),
     ),
+    ToolCatalogEntry(
+        id="search_references",
+        name="search_references",
+        description=(
+            "Search the project reference/evidence base for snippets matching a "
+            "query. Read-only; used to gather evidence for verification."
+        ),
+    ),
+    ToolCatalogEntry(
+        id="check_consistency",
+        name="check_consistency",
+        description=(
+            "Deterministic mechanical consistency checks (whitespace, blank lines, "
+            "double spaces, US/UK spelling mixing). Read-only."
+        ),
+    ),
+    ToolCatalogEntry(
+        id="propose_edit_group",
+        name="propose_edit_group",
+        description=(
+            "Propose a validated group of document edits for user review. "
+            "The document is not modified until the user applies the group."
+        ),
+    ),
 )
 
 _CATALOG_BY_ID = {entry.id: entry for entry in TOOL_CATALOG}

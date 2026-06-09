@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from edit_group_service import EditGroupService
+from memory_store import MemoryStore
 from protocol import SessionState
 from project_root import resolve_project_root
 from session_store import SessionStore
@@ -19,6 +21,8 @@ class Connection:
     runner: WritingAgentRunner
     project_root: Path
     session_store: SessionStore
+    edit_service: EditGroupService
+    memory_store: MemoryStore
     current_session_id: str | None = None
 
     @classmethod
@@ -29,4 +33,6 @@ class Connection:
             runner=WritingAgentRunner(project_root=root),
             project_root=root,
             session_store=session_store,
+            edit_service=EditGroupService(project_root=root),
+            memory_store=MemoryStore(),
         )

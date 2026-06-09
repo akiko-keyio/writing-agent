@@ -7,7 +7,6 @@ import { EXPLORER_RAIL_ITEMS } from "@/components/explorer-sidebar-icon-rail"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { shell } from "@/lib/shell-chrome"
 import { gap, p, row, stack } from "@/lib/spacing"
 import { cn } from "@/lib/utils"
 

@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { FileTree as PierreFileTreeModel } from "@pierre/trees"
+import type {
+  FileTree as PierreFileTreeModel,
+  FileTreeDirectoryHandle,
+} from "@pierre/trees"
 import { FileTree, useFileTree } from "@pierre/trees/react"
 
 import {
@@ -51,13 +54,19 @@ function useContainerHeight() {
   return { ref, height }
 }
 
+function asDirectoryHandle(
+  item: ReturnType<PierreFileTreeModel["getItem"]>
+): FileTreeDirectoryHandle | null {
+  return item?.isDirectory() ? (item as FileTreeDirectoryHandle) : null
+}
+
 function snapshotExpandedDirectoryPaths(
   model: PierreFileTreeModel,
   filePaths: readonly string[]
 ): string[] {
   return collectDirectoryPathsFromFilePaths(filePaths).filter((dirPath) => {
-    const item = model.getItem(dirPath)
-    return item?.isDirectory() === true && item.isExpanded()
+    const dir = asDirectoryHandle(model.getItem(dirPath))
+    return dir?.isExpanded() === true
   })
 }
 
@@ -66,9 +75,9 @@ function expandAncestorDirectories(
   activePath: string | null
 ) {
   for (const dirPath of collectAncestorDirectoryPaths(activePath)) {
-    const item = model.getItem(dirPath)
-    if (item?.isDirectory() && !item.isExpanded()) {
-      item.expand()
+    const dir = asDirectoryHandle(model.getItem(dirPath))
+    if (dir && !dir.isExpanded()) {
+      dir.expand()
     }
   }
 }

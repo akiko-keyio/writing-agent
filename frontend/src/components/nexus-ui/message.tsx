@@ -7,7 +7,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Kbd } from "@/components/ui/kbd"
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"
 import { chatMarkdownBodyClass } from "@/lib/chat-typography"
-import { chatStreamdownPlugins } from "@/lib/chat-streamdown"
 import { gap } from "@/lib/spacing"
 import { cn } from "@/lib/utils"
 
@@ -152,7 +151,6 @@ export type MessageAvatarProps = {
   src: string
   alt?: string
   fallback?: React.ReactNode
-  size?: React.ComponentProps<typeof Avatar>["size"]
   className?: string
 }
 
@@ -160,13 +158,11 @@ function MessageAvatar({
   src,
   alt = "",
   fallback,
-  size,
   className,
 }: MessageAvatarProps) {
   return (
     <Avatar
       data-slot="message-avatar"
-      size={size}
       className={cn("size-7 shrink-0", className)}
     >
       <AvatarImage src={src} alt={alt} />

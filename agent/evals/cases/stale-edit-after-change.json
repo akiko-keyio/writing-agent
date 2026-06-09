@@ -1,0 +1,37 @@
+{
+  "id": "stale-edit-after-change",
+  "suites": ["smoke"],
+  "description": "A validated edit becomes stale when the document changes so its target text is no longer locatable.",
+  "autopilot_policy": "suggest_only",
+  "document_path": "draft.md",
+  "document": "# Draft\n\nThe quick brown fox jumps over the lazy dog.\n",
+  "instruction": "Improve the sentence.",
+  "model_script": [
+    { "tools": [{ "name": "read_file", "input": { "path": "draft.md" } }] },
+    {
+      "tools": [
+        {
+          "name": "propose_edit_group",
+          "input": {
+            "path": "draft.md",
+            "title": "Sharper imagery",
+            "edits": [
+              { "kind": "replace", "old_text": "quick brown fox", "new_text": "swift red fox" }
+            ]
+          }
+        }
+      ]
+    },
+    { "text": "Proposed sharper imagery." }
+  ],
+  "mutate_after": {
+    "path": "draft.md",
+    "document": "# Draft\n\nThe slow green turtle crawls home.\n"
+  },
+  "expect": {
+    "must_call": ["read_file", "propose_edit_group"],
+    "must_create_group": true,
+    "document_unchanged": true,
+    "group_status_after": "stale"
+  }
+}

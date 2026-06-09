@@ -1,15 +1,16 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from "react"
 
-import type { DocumentPatchMessage } from "@/lib/agent-protocol"
 import {
   closeTab,
   type DocumentTab,
   isVirtualTab,
+  markTabDirty,
   repathTabs,
   SETTINGS_PATH,
   updateTabContent,
   upsertTab,
 } from "@/lib/document-tabs"
+import type { DocumentTocEntry } from "@/lib/document-toc"
 import {
   prefetchFileRead,
   readFileCached,
@@ -143,6 +144,32 @@ export function useDocumentTabs({
     [activePath, tabs, onDocumentChange]
   )
 
+  /**
+   * Replace a document's content from a backend source (e.g. an applied edit
+   * group). Updates the editor surface (if active), the tab content, and marks
+   * the tab dirty (unsaved). Cancels any pending debounced change so it cannot
+   * overwrite the applied content with stale editor text.
+   */
+  const applyExternalContent = useCallback(
+    (path: string, content: string) => {
+      if (changeDebounceRef.current) {
+        clearTimeout(changeDebounceRef.current)
+        changeDebounceRef.current = null
+      }
+      if (path === activePath) {
+        skipNextDocumentOpenRef.current = true
+        setDocumentContent(content)
+      }
+      setTabs((prev) => updateTabContent(prev, path, content, true))
+    },
+    [activePath],
+  )
+
+  /** Mark a tab clean after a successful disk save. */
+  const markSaved = useCallback((path: string) => {
+    setTabs((prev) => markTabDirty(prev, path, false))
+  }, [])
+
   const handleCloseTab = useCallback(
     (path: string) => {
       const nextTabs = closeTab(tabs, path)
@@ -194,6 +221,8 @@ export function useDocumentTabs({
     handleMarkdownChange,
     handleCloseTab,
     repathOpenTabs,
+    applyExternalContent,
+    markSaved,
     skipNextDocumentOpenRef,
   }
 }

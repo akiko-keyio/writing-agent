@@ -1,0 +1,10 @@
+{
+  "id": "claim-requiring-evidence-missing",
+  "suites": ["smoke", "evidence"],
+  "kind": "evidence",
+  "description": "A factual claim with no supporting evidence is classified as missing_evidence.",
+  "claim": "Method X increases accuracy by 5 percent over the baseline.",
+  "evidence": [],
+  "evidence_source": "none",
+  "expect": { "claim_status": "missing_evidence" }
+}

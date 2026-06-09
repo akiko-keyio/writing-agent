@@ -105,32 +105,36 @@ def queue_event_to_ws(
     payload: dict[str, Any],
     accum: StreamAccum,
 ) -> list[dict[str, Any]]:
-    """Map tool queue events from read_file (etc.) to WS messages."""
+    """Map tool queue events to WS messages.
+
+    Tool start/end events are normalized to ``chat/tool_update``. Other
+    backend-originated events placed on the queue (e.g. ``group/propose`` from
+    the ``propose_edit_group`` tool) are passed through unchanged.
+    """
     event_type = payload.get("type")
-    tool_id = str(payload.get("tool_id", ""))
-    if not tool_id:
-        return []
 
-    if event_type == "chat/tool_start":
-        accum.tool_ids_seen.add(tool_id)
-        return [
-            _tool_update_message(
-                accum,
-                tool_id,
-                str(payload.get("name", "tool")),
-                "running",
-                input_payload=payload.get("input"),
-            ),
-        ]
-
-    if event_type == "chat/tool_end":
+    if event_type in ("chat/tool_start", "chat/tool_end"):
+        tool_id = str(payload.get("tool_id", ""))
+        if not tool_id:
+            return []
+        if event_type == "chat/tool_start":
+            accum.tool_ids_seen.add(tool_id)
+            return [
+                _tool_update_message(
+                    accum,
+                    tool_id,
+                    str(payload.get("name", "tool")),
+                    "running",
+                    input_payload=payload.get("input"),
+                ),
+            ]
         status = str(payload.get("status", "completed"))
         ws_status = "error" if status == "error" else "completed"
         return [
             _tool_update_message(
                 accum,
                 tool_id,
-                str(payload.get("name", "read_file")),
+                str(payload.get("name", "tool")),
                 ws_status,
                 input_payload=payload.get("input"),
                 output=payload.get("output"),
@@ -138,4 +142,5 @@ def queue_event_to_ws(
             ),
         ]
 
-    return []
+    # Pass-through for non-tool queue events (e.g. group/propose).
+    return [payload]

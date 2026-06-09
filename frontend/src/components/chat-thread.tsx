@@ -22,8 +22,18 @@ import {
   SuggestionList,
   Suggestions,
 } from "@/components/nexus-ui/suggestions"
+import { ReviewPanel } from "@/components/review-panel"
 import type { AgentChatMessage } from "@/hooks/use-agent-session"
-import type { ChatMessageContext, ModelEntryData } from "@/lib/agent-protocol"
+import type {
+  ChatMessageContext,
+  Edit,
+  EditGroup,
+  ModelEntryData,
+} from "@/lib/agent-protocol"
+import {
+  attachmentsToContext,
+  type ChatAttachment,
+} from "@/lib/chat-attachments"
 import { formatChatContextLabel } from "@/lib/chat-context-label"
 import {
   chatThreadColumnClass,
@@ -65,6 +75,14 @@ export interface ChatThreadProps {
   activeModelId?: string | null
   onSelectModel?: (modelId: string) => void
   onOpenModelsSettings?: () => void
+  editGroups?: EditGroup[]
+  onApplyGroup?: (groupId: string) => void
+  onRejectGroup?: (groupId: string) => void
+  onDeleteGroup?: (groupId: string) => void
+  onSelectEdit?: (group: EditGroup, edit: Edit) => void
+  attachments?: ChatAttachment[]
+  onRemoveAttachment?: (id: string) => void
+  onClearAttachments?: () => void
 }
 
 function extractMentions(text: string, paths: string[]): string[] {
@@ -110,6 +128,14 @@ export function ChatThread({
   activeModelId = null,
   onSelectModel,
   onOpenModelsSettings,
+  editGroups = [],
+  onApplyGroup,
+  onRejectGroup,
+  onDeleteGroup,
+  onSelectEdit,
+  attachments = [],
+  onRemoveAttachment,
+  onClearAttachments,
 }: ChatThreadProps) {
   const [input, setInput] = useState("")
   const [branchAnchorId, setBranchAnchorId] = useState<string | null>(null)
@@ -129,33 +155,38 @@ export function ChatThread({
   const activeInput = branchAnchorId ? branchInput : input
 
   const buildMessageContext = useCallback(
-    (text: string): ChatMessageContext => ({
-      active_path: activePath ?? undefined,
-      buffer_snapshot: activePath ? documentContent : undefined,
-      filename: activeFilename ?? undefined,
-      mentions: extractMentions(text, mentionablePaths),
-      selection:
-        editorSelection?.text?.trim() &&
-        editorSelection.filePath &&
-        text.includes(
-          formatChatContextLabel(editorSelection.filePath, {
-            startLine: editorSelection.startLine,
-            endLine: editorSelection.endLine,
-          }),
-        )
-          ? {
-              from: editorSelection.from,
-              to: editorSelection.to,
-              text: editorSelection.text,
-            }
-          : undefined,
-    }),
+    (text: string): ChatMessageContext => {
+      const base: ChatMessageContext = {
+        active_path: activePath ?? undefined,
+        buffer_snapshot: activePath ? documentContent : undefined,
+        filename: activeFilename ?? undefined,
+        mentions: extractMentions(text, mentionablePaths),
+        selection:
+          editorSelection?.text?.trim() &&
+          editorSelection.filePath &&
+          text.includes(
+            formatChatContextLabel(editorSelection.filePath, {
+              startLine: editorSelection.startLine,
+              endLine: editorSelection.endLine,
+            }),
+          )
+            ? {
+                from: editorSelection.from,
+                to: editorSelection.to,
+                text: editorSelection.text,
+              }
+            : undefined,
+      }
+      // Merge composer context chips (selection / file attachments).
+      return attachmentsToContext(base, attachments)
+    },
     [
       activeFilename,
       activePath,
       documentContent,
       mentionablePaths,
       editorSelection,
+      attachments,
     ],
   )
 
@@ -168,11 +199,12 @@ export function ChatThread({
       onSend(text, buildMessageContext(text))
       setInput("")
       setShowMentionList(false)
+      onClearAttachments?.()
       queueMicrotask(() => {
         submittingRef.current = false
       })
     },
-    [composerLocked, buildMessageContext, onSend],
+    [composerLocked, buildMessageContext, onSend, onClearAttachments],
   )
 
   const submitBranchMessage = useCallback(
@@ -338,6 +370,16 @@ export function ChatThread({
             ? "Connecting to agent…"
             : "Agent offline. Reconnecting…"}
         </p>
+      ) : null}
+
+      {onApplyGroup && onRejectGroup && onDeleteGroup ? (
+        <ReviewPanel
+          groups={editGroups}
+          onApply={onApplyGroup}
+          onReject={onRejectGroup}
+          onDelete={onDeleteGroup}
+          onSelectEdit={onSelectEdit}
+        />
       ) : null}
 
       <Thread
@@ -514,6 +556,32 @@ export function ChatThread({
               ))}
             </ul>
           </ScrollArea>
+        ) : null}
+
+        {attachments.length > 0 ? (
+          <div className={cn(chatBoxLaneClass, "mb-2 flex flex-wrap", gap.xs)}>
+            {attachments.map((att) => (
+              <span
+                key={att.id}
+                className={cn(
+                  "flex items-center rounded-full border border-border bg-muted text-xs",
+                  gap.xs,
+                  p[2].x,
+                  p[0.5].y,
+                )}
+              >
+                <span className="truncate font-mono">{att.label}</span>
+                <button
+                  type="button"
+                  aria-label="Remove attachment"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => onRemoveAttachment?.(att.id)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
         ) : null}
 
         <ChatComposer

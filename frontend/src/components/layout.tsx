@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import type { ExplorerView } from "@/components/canvas-chrome"
 import type { DocumentEditorHandle } from "@/components/document-editor"
@@ -6,6 +6,7 @@ import { WorkbenchTopBar } from "@/components/workbench-top-bar"
 import { ExplorerPanel } from "@/components/explorer-panel"
 import { DocumentPanel } from "@/components/document-panel"
 import { ChatPanel } from "@/components/chat-panel"
+import { modelDisplayName } from "@/components/model-switcher-trigger"
 import { PanelResizeHandle } from "@/components/panel-resize-handle"
 import type { SettingsSection } from "@/components/settings-editor"
 import { useAgentSession } from "@/hooks/use-agent-session"
@@ -16,6 +17,10 @@ import { useWorkspace } from "@/hooks/use-workspace"
 import { usePanelResize } from "@/hooks/use-panel-resize"
 import type { DocumentPatchMessage } from "@/lib/agent-protocol"
 import type { EditorSelection } from "@/components/document-editor"
+import {
+  makeSelectionAttachment,
+  type ChatAttachment,
+} from "@/lib/chat-attachments"
 import { invalidateFileReadCache } from "@/lib/file-read-cache"
 import { SETTINGS_PATH } from "@/lib/document-tabs"
 import { pathBasename, pathDirname, pathJoin } from "@/lib/path"
@@ -52,6 +57,7 @@ export function Layout() {
   const documentEditorRef = useRef<DocumentEditorHandle>(null)
   const [editorSelection, setEditorSelection] =
     useState<EditorSelection | null>(null)
+  const [chatAttachments, setChatAttachments] = useState<ChatAttachment[]>([])
   const welcomeShownRef = useRef(false)
   const [fullscreenPane, setFullscreenPane] =
     useState<WorkbenchFullscreenPane | null>(null)
@@ -102,6 +108,19 @@ export function Layout() {
 
   const agent = useAgentSession({
     onDocumentPatch: handleDocumentPatch,
+    onDocumentBuffer: (msg) => {
+      // Buffer changed by the backend (applied edit group) — sync editor, tab,
+      // and dirty state so switching tabs or saving uses the applied content.
+      documentTabs.applyExternalContent(msg.path, msg.document)
+    },
+    onDocumentSaved: (msg) => {
+      if (msg.ok) documentTabs.markSaved(msg.path)
+      toastManager.add({
+        type: msg.ok ? "success" : "error",
+        title: msg.ok ? "Document saved" : "Save failed",
+        description: msg.path,
+      })
+    },
     onError: (message) => {
       toastManager.add({
         type: "error",
@@ -138,6 +157,84 @@ export function Layout() {
       syncDocumentToAgent(content, path)
     },
   })
+
+  const handleSaveDocument = useCallback(() => {
+    const path = documentTabs.activePath
+    if (!path || path === SETTINGS_PATH) return
+    // Flush the editor's latest content (bypassing TipTap change debounce) so we
+    // never save stale text, then push it to the backend buffer and save to disk.
+    const latest =
+      documentEditorRef.current?.getMarkdown() ?? documentTabs.documentContent
+    agent.sendDocumentChange(latest, path)
+    agent.saveDocument(path)
+  }, [
+    agent.sendDocumentChange,
+    agent.saveDocument,
+    documentTabs.activePath,
+    documentTabs.documentContent,
+  ])
+
+  const editHighlights = useMemo(() => {
+    const path = documentTabs.activePath
+    if (!path) return []
+    const out: { id: string; text: string; stale?: boolean }[] = []
+    for (const group of agent.editGroups) {
+      if (group.path !== path) continue
+      if (!["proposed", "partially_applied", "stale"].includes(group.status)) continue
+      for (const edit of group.edits) {
+        if (["applied", "deleted", "replaced", "rejected"].includes(edit.status)) continue
+        const text =
+          edit.kind === "insert"
+            ? edit.anchor.prefix_context || edit.new_text
+            : edit.old_text
+        if (!text) continue
+        out.push({
+          id: edit.id,
+          text,
+          stale: edit.status === "stale" || group.status === "stale",
+        })
+      }
+    }
+    return out
+  }, [agent.editGroups, documentTabs.activePath])
+
+  const handleAddSelectionToChat = useCallback((selection: EditorSelection) => {
+    if (!selection.text.trim()) return
+    const attachment = makeSelectionAttachment({
+      path: selection.filePath,
+      from: selection.from,
+      to: selection.to,
+      text: selection.text,
+      startLine: selection.startLine,
+      endLine: selection.endLine,
+    })
+    setChatAttachments((prev) =>
+      prev.some((a) => a.id === attachment.id) ? prev : [...prev, attachment],
+    )
+  }, [])
+
+  const handleRemoveAttachment = useCallback((id: string) => {
+    setChatAttachments((prev) => prev.filter((a) => a.id !== id))
+  }, [])
+
+  const handleClearAttachments = useCallback(() => {
+    setChatAttachments([])
+  }, [])
+
+  const handleSelectEdit = useCallback(
+    (group: { path: string }, edit: { old_text: string; new_text: string; anchor: { prefix_context: string } }) => {
+      const target =
+        edit.old_text || edit.anchor.prefix_context || edit.new_text
+      const scroll = () => documentEditorRef.current?.scrollToText(target)
+      if (group.path !== documentTabs.activePath) {
+        void documentTabs.openFile(group.path)
+        window.setTimeout(scroll, 250)
+      } else {
+        scroll()
+      }
+    },
+    [documentTabs.openFile, documentTabs.activePath],
+  )
 
   // Update workspace's file open callback after documentTabs is available
   useEffect(() => {
@@ -522,10 +619,12 @@ export function Layout() {
     onSettingsSectionChange: handleSettingsSectionChange,
   } as const
 
-  const activeModelLabel =
-    settings.config?.models.find((m) => m.id === settings.config?.active)?.model ??
-    settings.config?.models[0]?.model ??
-    "No model"
+  const activeModelEntry =
+    settings.config?.models.find((m) => m.id === settings.config?.active) ??
+    settings.config?.models[0]
+  const activeModelLabel = activeModelEntry
+    ? modelDisplayName(activeModelEntry)
+    : "No model"
 
   const chatPanelProps = {
     chatOpen: chatPanelOpen,
@@ -547,6 +646,14 @@ export function Layout() {
     activeModelId: settings.config?.active ?? null,
     onSelectModel: settings.setActiveModel,
     onOpenModelsSettings: handleOpenModelsSettings,
+    editGroups: agent.editGroups,
+    onApplyGroup: agent.applyGroup,
+    onRejectGroup: agent.rejectGroup,
+    onDeleteGroup: agent.deleteGroup,
+    onSelectEdit: handleSelectEdit,
+    attachments: chatAttachments,
+    onRemoveAttachment: handleRemoveAttachment,
+    onClearAttachments: handleClearAttachments,
   } as const
 
   return (
@@ -565,7 +672,7 @@ export function Layout() {
         onSelectDocument={(path) => void documentTabs.openFile(path)}
         onCloseDocument={documentTabs.handleCloseTab}
         chatSessions={chatSessions.chatSessionsForSwitcher}
-        activeChatId={chatSessions.chatSessionId}
+        activeChatId={chatSessions.chatSessionId ?? ""}
         onSelectChat={chatSessions.handleSelectChatTab}
         onNewChat={chatSessions.handleNewChat}
         chatHistorySessions={chatSessions.chatHistoryForSwitcher}
@@ -626,7 +733,17 @@ export function Layout() {
               onAddModel={settings.addModel}
               onUpdateModel={settings.updateModel}
               onRemoveModel={settings.removeModel}
+              onSetActiveModel={settings.setActiveModel}
               onSetToolEnabled={settings.setToolEnabled}
+              onSetSubagentEnabled={settings.setSubagentEnabled}
+              settingsMemory={settings.memory}
+              settingsMemoryEnabled={settings.memoryEnabled}
+              onSetMemoryEnabled={settings.setMemoryEnabled}
+              onDeleteMemory={settings.deleteMemoryEntry}
+              onClearMemory={settings.clearMemory}
+              onSave={handleSaveDocument}
+              editHighlights={editHighlights}
+              onAddSelectionToChat={handleAddSelectionToChat}
             />
 
             {gridChatWidth > 0 ? (

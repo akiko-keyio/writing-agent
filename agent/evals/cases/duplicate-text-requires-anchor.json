@@ -1,0 +1,34 @@
+{
+  "id": "duplicate-text-requires-anchor",
+  "suites": ["smoke"],
+  "description": "An ambiguous replacement of repeated text without an anchor is rejected by backend validation; no group is created.",
+  "autopilot_policy": "suggest_only",
+  "document_path": "notes.md",
+  "document": "# Notes\n\nWe process data. We store data. We analyze data.\n",
+  "instruction": "Replace 'data' with 'information'.",
+  "model_script": [
+    { "tools": [{ "name": "read_file", "input": { "path": "notes.md" } }] },
+    {
+      "tools": [
+        {
+          "name": "propose_edit_group",
+          "input": {
+            "path": "notes.md",
+            "title": "Rename data -> information",
+            "edits": [
+              { "kind": "replace", "old_text": "data", "new_text": "information" }
+            ]
+          }
+        }
+      ]
+    },
+    { "text": "That target text repeats; I would need anchors to disambiguate." }
+  ],
+  "expect": {
+    "must_call": ["read_file", "propose_edit_group"],
+    "must_not_create_group": true,
+    "expect_tool_error": true,
+    "must_not_emit": ["document/patch"],
+    "document_unchanged": true
+  }
+}

@@ -11,7 +11,10 @@ import type {
   AgentToolStatus,
   ChatMessageContext,
   ChatToolUpdateMessage,
+  DocumentBufferMessage,
   DocumentPatchMessage,
+  DocumentSavedMessage,
+  EditGroup,
   SessionSummary,
   SessionUiMessage,
 } from "@/lib/agent-protocol"
@@ -47,9 +50,23 @@ export type AgentChatMessage = {
 
 export type UseAgentSessionOptions = {
   onDocumentPatch?: (patch: DocumentPatchMessage) => void
+  /** Buffer updated by the backend (e.g. after applying an edit group). */
+  onDocumentBuffer?: (msg: DocumentBufferMessage) => void
+  /** Disk save result for a document. */
+  onDocumentSaved?: (msg: DocumentSavedMessage) => void
   onError?: (message: string) => void
   /** Called for every outbound message — used by useSettings to intercept settings/data. */
   onAgentMessage?: (msg: AgentOutboundMessage) => void
+}
+
+function upsertGroup(groups: EditGroup[], group: EditGroup): EditGroup[] {
+  const index = groups.findIndex((g) => g.id === group.id)
+  if (index >= 0) {
+    const next = [...groups]
+    next[index] = group
+    return next
+  }
+  return [...groups, group]
 }
 
 function updateStreamingMessage(
@@ -98,11 +115,13 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
   const [agentThinking, setAgentThinking] = useState(false)
   const [backendSessions, setBackendSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [editGroups, setEditGroups] = useState<EditGroup[]>([])
   const clientRef = useRef<AgentClient | null>(null)
   const optionsRef = useRef(options)
   optionsRef.current = options
   const listedOnConnectRef = useRef(false)
   const stoppedStreamsRef = useRef<Set<string>>(new Set())
+  const currentRequestIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     const client = getAgentClient({
@@ -116,6 +135,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
         if (msg.type === "session/cleared") {
           if (msg.session_id) setActiveSessionId(msg.session_id)
           setMessages(uiMessagesToChat(msg.messages))
+          setEditGroups([])
           setAgentThinking(false)
           return
         }
@@ -125,6 +145,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
           if (msg.messages.length > 0) {
             setMessages(uiMessagesToChat(msg.messages))
           }
+          setEditGroups([])
           setAgentThinking(false)
           setBackendSessions((prev) => {
             const exists = prev.some((s) => s.session_id === msg.session_id)
@@ -269,6 +290,31 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
           return
         }
 
+        if (msg.type === "group/propose") {
+          setEditGroups((prev) => upsertGroup(prev, msg.group))
+          return
+        }
+
+        if (msg.type === "group/update") {
+          setEditGroups((prev) => upsertGroup(prev, msg.group))
+          return
+        }
+
+        if (msg.type === "group/state") {
+          setEditGroups(msg.groups)
+          return
+        }
+
+        if (msg.type === "document/buffer") {
+          optionsRef.current.onDocumentBuffer?.(msg)
+          return
+        }
+
+        if (msg.type === "document/saved") {
+          optionsRef.current.onDocumentSaved?.(msg)
+          return
+        }
+
         if (msg.type === "document/patch") {
           optionsRef.current.onDocumentPatch?.(msg)
         }
@@ -323,11 +369,14 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
           text: trimmed,
         },
       ])
+      const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      currentRequestIdRef.current = requestId
       setAgentThinking(true)
       clientRef.current?.send({
         type: "chat/message",
         text: trimmed,
         context,
+        request_id: requestId,
       })
     },
     [],
@@ -418,7 +467,30 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
         }
       }),
     )
-    clientRef.current?.send({ type: "chat/cancel" })
+    clientRef.current?.send({
+      type: "chat/cancel",
+      request_id: currentRequestIdRef.current ?? undefined,
+    })
+  }, [])
+
+  const applyGroup = useCallback((groupId: string) => {
+    clientRef.current?.send({ type: "group/apply", group_id: groupId })
+  }, [])
+
+  const rejectGroup = useCallback((groupId: string) => {
+    clientRef.current?.send({ type: "group/reject", group_id: groupId })
+  }, [])
+
+  const deleteGroup = useCallback((groupId: string) => {
+    clientRef.current?.send({ type: "group/delete", group_id: groupId })
+  }, [])
+
+  const saveDocument = useCallback((path: string) => {
+    clientRef.current?.send({ type: "document/save", path })
+  }, [])
+
+  const requestGroupState = useCallback(() => {
+    clientRef.current?.send({ type: "group/state" })
   }, [])
 
   const isStreaming = messages.some((m) => m.streaming)
@@ -431,6 +503,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
       isStreaming,
       backendSessions,
       activeSessionId,
+      editGroups,
       sendDocumentOpen,
       sendDocumentChange,
       sendChat,
@@ -441,6 +514,11 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
       switchSession,
       requestSessionList,
       setWelcomeMessage,
+      applyGroup,
+      rejectGroup,
+      deleteGroup,
+      saveDocument,
+      requestGroupState,
     }),
     [
       connectionState,
@@ -449,6 +527,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
       isStreaming,
       backendSessions,
       activeSessionId,
+      editGroups,
       sendDocumentOpen,
       sendDocumentChange,
       sendChat,
@@ -459,6 +538,11 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
       switchSession,
       requestSessionList,
       setWelcomeMessage,
+      applyGroup,
+      rejectGroup,
+      deleteGroup,
+      saveDocument,
+      requestGroupState,
     ],
   )
 }

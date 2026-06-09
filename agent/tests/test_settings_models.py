@@ -1,0 +1,125 @@
+"""Settings model behavior: no-write read, masked field, active rebuild."""
+
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+
+import pytest
+
+from connection import Connection
+from handler import handle_message_events
+from session_store import SessionStore
+
+
+@pytest.fixture
+def models_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    path = tmp_path / "models.yaml"
+    monkeypatch.setattr("model_manager._MODELS_FILE", path)
+    return path
+
+
+async def _collect(conn: Connection, raw: dict) -> list[dict]:
+    return [e async for e in handle_message_events(conn, raw)]
+
+
+def _conn() -> Connection:
+    store = SessionStore()
+    conn = Connection.create(store)
+    return conn
+
+
+def _add(conn: Connection, model: str, key: str, base: str) -> list[dict]:
+    return asyncio.run(
+        _collect(
+            conn,
+            {
+                "type": "settings/update",
+                "action": "add_model",
+                "model": {"model": model, "api_key": key, "api_base": base},
+            },
+        ),
+    )
+
+
+def test_settings_read_does_not_write_models_yaml(models_yaml: Path) -> None:
+    conn = _conn()
+    events = asyncio.run(_collect(conn, {"type": "settings/read"}))
+    assert events[0]["type"] == "settings/data"
+    # Reading settings must never create a secret-bearing file.
+    assert not models_yaml.exists()
+
+
+def test_settings_read_masks_key_field(models_yaml: Path) -> None:
+    conn = _conn()
+    _add(conn, "gpt-test", "sk-supersecret-1234", "https://example/v1")
+    events = asyncio.run(_collect(conn, {"type": "settings/read"}))
+    model = events[0]["config"]["models"][0]
+    assert "api_key" not in model  # raw key never leaves the backend
+    assert "api_key_masked" in model
+    assert "supersecret" not in model["api_key_masked"]
+    assert model["api_key_masked"].endswith("1234")
+
+
+def test_no_temperature_required_and_defaulted(models_yaml: Path) -> None:
+    conn = _conn()
+    _add(conn, "m1", "sk-k", "https://e/v1")
+    events = asyncio.run(_collect(conn, {"type": "settings/read"}))
+    model = events[0]["config"]["models"][0]
+    # Temperature is an internal default; it is present but not user-facing.
+    assert model["temperature"] == 0.3
+
+
+def test_add_model_updated_response_has_masked_key(models_yaml: Path) -> None:
+    conn = _conn()
+    events = _add(conn, "m1", "sk-abcd1234", "https://e/v1")
+    updated = next(e for e in events if e["type"] == "settings/updated")
+    model = updated["config"]["models"][0]
+    assert "api_key" not in model
+    assert model["api_key_masked"].endswith("1234")
+
+
+def test_remove_active_model_reselects(models_yaml: Path) -> None:
+    from model_manager import load_models
+
+    conn = _conn()
+    _add(conn, "alpha", "sk-a", "https://a/v1")
+    _add(conn, "beta", "sk-b", "https://b/v1")
+    cfg = load_models()
+    assert cfg.active == cfg.models[0].id
+    active_id = cfg.active
+
+    asyncio.run(
+        _collect(
+            conn,
+            {"type": "settings/update", "action": "remove_model", "model_id": active_id},
+        ),
+    )
+    cfg2 = load_models()
+    assert len(cfg2.models) == 1
+    assert cfg2.active == cfg2.models[0].id
+    assert cfg2.active != active_id
+
+
+def test_env_fallback_shown_without_persisting(
+    models_yaml: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    # config is a frozen dataclass; replace the module-level instance that
+    # env_fallback_entry reads via ``from config import config``.
+    monkeypatch.setattr(
+        "config.config",
+        SimpleNamespace(
+            openai_api_key="sk-env-secret",
+            openai_model="env-model",
+            openai_api_base="https://env/v1",
+        ),
+    )
+
+    conn = _conn()
+    events = asyncio.run(_collect(conn, {"type": "settings/read"}))
+    models = events[0]["config"]["models"]
+    assert any(m["model"] == "env-model" for m in models)
+    # Fallback display must not persist a models.yaml.
+    assert not models_yaml.exists()

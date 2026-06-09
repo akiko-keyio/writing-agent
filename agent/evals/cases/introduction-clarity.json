@@ -1,0 +1,41 @@
+{
+  "id": "introduction-clarity",
+  "suites": ["smoke"],
+  "description": "Agent tightens a wordy introduction sentence through a validated replacement.",
+  "autopilot_policy": "suggest_only",
+  "document_path": "intro.md",
+  "document": "# Introduction\n\nIn this paper, we will basically try to sort of explain the method.\n",
+  "instruction": "Tighten the introduction sentence for clarity.",
+  "model_script": [
+    { "tools": [{ "name": "read_file", "input": { "path": "intro.md" } }] },
+    {
+      "tools": [
+        {
+          "name": "propose_edit_group",
+          "input": {
+            "path": "intro.md",
+            "title": "Tighten introduction",
+            "summary": "Remove hedging filler.",
+            "edits": [
+              {
+                "kind": "replace",
+                "old_text": "we will basically try to sort of explain the method",
+                "new_text": "we explain the method",
+                "rationale": "Removes hedging that slows the reader.",
+                "risk": "low"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    { "text": "Proposed a tighter introduction." }
+  ],
+  "expect": {
+    "must_call": ["read_file", "propose_edit_group"],
+    "must_create_group": true,
+    "valid_anchor_count": "all",
+    "must_not_emit": ["document/patch"],
+    "document_unchanged": true
+  }
+}

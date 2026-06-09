@@ -180,7 +180,7 @@ export function WorkbenchTopBar({
               />
             ) : (
               <ExplorerTopBarRail
-                explorerView={explorerView}
+                explorerView={explorerView ?? "file"}
                 onExplorerViewChange={onExplorerTabChange}
                 activeProject={activeProject}
                 recentProjects={recentProjects}

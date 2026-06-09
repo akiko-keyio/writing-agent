@@ -2,28 +2,16 @@ import {
   forwardRef,
   useCallback,
   useRef,
-  useState,
   type KeyboardEvent,
 } from "react"
 
-import {
-  ArrowDown01Icon,
-  ArrowUp02Icon,
-  StopIcon,
-} from "@hugeicons/core-free-icons"
+import { ArrowUp02Icon, StopIcon } from "@hugeicons/core-free-icons"
 
 import { ChromePanelScroll } from "@/components/chrome-scroll-area"
 import { ModelSwitcherTrigger } from "@/components/model-switcher-trigger"
 import { Textarea } from "@/components/nexus-ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Kbd } from "@/components/ui/kbd"
-import {
-  Menu,
-  MenuGroup,
-  MenuItem,
-  MenuPopup,
-  MenuTrigger,
-} from "@/components/ui/menu"
 import {
   Tooltip,
   TooltipPopup,
@@ -41,81 +29,17 @@ const COMPOSER_SHELL_CLASS = cn(
   shell.chatComposerChrome,
 )
 
-type ComposerModeId = "ask" | "agent" | "edit"
-
 type ComposerFooterVariant = "full" | "send-only"
 
-const COMPOSER_MODES: {
-  id: ComposerModeId
-  label: string
-  hint: string
-}[] = [
-  { id: "ask", label: "Ask", hint: "Answer only, no file edits" },
-  { id: "agent", label: "Agent", hint: "Use tools to read and write the project" },
-  { id: "edit", label: "Edit", hint: "Focus on editing the open draft" },
-]
-
-function ComposerMenuTwoLineEntry({
-  title,
-  subtitle,
-}: {
-  title: string
-  subtitle: string
-}) {
+/** Single Agent mode: a static status label, not a selector. */
+function ComposerAgentStatus() {
   return (
-    <span className={cn(shell.projectMenuEntry, "w-full")}>
-      <span className={shell.projectMenuLine}>{title}</span>
-      <span className={shell.projectMenuLineMuted}>{subtitle}</span>
+    <span
+      className={cn(shell.composerMenuTrigger, "cursor-default text-muted-foreground")}
+      aria-label="Agent mode"
+    >
+      Agent
     </span>
-  )
-}
-
-function ComposerModeMenu({
-  mode,
-  onMode,
-  disabled,
-}: {
-  mode: ComposerModeId
-  onMode: (mode: ComposerModeId) => void
-  disabled?: boolean
-}) {
-  const active = COMPOSER_MODES.find((m) => m.id === mode) ?? COMPOSER_MODES[0]
-  return (
-    <Menu>
-      <MenuTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={disabled}
-            className={shell.composerMenuTrigger}
-          />
-        }
-      >
-        <span className="min-w-0 truncate">{active.label}</span>
-        <HugeiconsIcon icon={ArrowDown01Icon} aria-hidden="true" className="size-3.5 shrink-0 opacity-70" />
-      </MenuTrigger>
-      <MenuPopup align="start" className={shell.projectMenuPopup}>
-        <MenuGroup>
-          {COMPOSER_MODES.map((m) => {
-            const isActive = m.id === active.id
-            return (
-              <MenuItem
-                key={m.id}
-                className={cn(
-                  shell.projectMenuItem,
-                  isActive && "bg-accent text-accent-foreground",
-                )}
-                onClick={() => onMode(m.id)}
-              >
-                <ComposerMenuTwoLineEntry title={m.label} subtitle={m.hint} />
-              </MenuItem>
-            )
-          })}
-        </MenuGroup>
-      </MenuPopup>
-    </Menu>
   )
 }
 
@@ -218,7 +142,6 @@ export const ChatComposer = forwardRef<HTMLDivElement, ChatComposerProps>(
     },
     ref,
   ) {
-    const [mode, setMode] = useState<ComposerModeId>("ask")
     const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
     const handleKeyDown = useCallback(
@@ -284,7 +207,7 @@ export const ChatComposer = forwardRef<HTMLDivElement, ChatComposerProps>(
         >
           {footerVariant === "full" ? (
             <>
-              <ComposerModeMenu mode={mode} onMode={setMode} disabled={inputDisabled} />
+              <ComposerAgentStatus />
               <div className={cn(row.sm, "shrink-0")}>
                 <ModelSwitcherTrigger
                   models={models}

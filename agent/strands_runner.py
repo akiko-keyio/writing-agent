@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from collections.abc import AsyncIterator
@@ -10,12 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from strands import Agent
-from strands.models.openai import OpenAIModel
 from strands.types.agent import Limits
 from strands.types.content import Message
 from strands.vended_plugins.skills.agent_skills import AgentSkills
 
-from config import config
+from model_factory import ModelFactory, create_active_model
 from protocol import SessionState
 from project_root import resolve_project_root
 from stream_events import StreamAccum, queue_event_to_ws, strands_callback_to_ws
@@ -54,22 +54,27 @@ open files with ``read_file`` when you need the full text.
 
 Answer clearly about structure, clarity, and revisions. Only describe document changes after reading the relevant files.
 
-## Skills and specialists
-You have Agent Skills under the academic-writing plugin (load on demand via the built-in skills tool).
-For deep review, consistency checks, research, or bibliography work, delegate to the matching specialist tools
-(``review``, ``check``, ``researcher``, ``reference_list``) instead of improvising that workflow yourself.
+## Proposing document changes
+Never claim you edited a file directly and never paste a full rewritten document as the change.
+To modify a document, call the ``propose_edit_group`` tool with a coherent group of edits
+(replace / delete / insert). The backend validates each edit against the current text and the
+user reviews and applies the group. Provide ``old_text`` exactly as it appears, and use
+``anchor`` (prefix/suffix context) when the target text repeats or when inserting between
+paragraphs. The document stays unchanged until the user applies your proposal.
+
+## Tools and specialists
+Decide for yourself when to discuss, read files, check, gather evidence, or propose edits.
+Available tools and specialists:
+- ``read_file`` — read a draft or any project file.
+- ``check_consistency`` — deterministic mechanical checks (whitespace, blank lines, spelling
+  variant mixing). Use it for mechanical issues; then propose fixes with ``propose_edit_group``.
+- ``search_references`` — search the local reference base for evidence.
+- ``review`` — an independent reader-perspective reviewer (isolated context). Delegate to it
+  when you want an unbiased read of how the target reader experiences the text.
+- ``researcher`` — an evidence specialist that works only from local references (no downloads).
+Only use a specialist when its isolated perspective adds value; otherwise do the work directly.
+Do not claim to use capabilities you do not have (e.g. downloading papers).
 """
-
-
-def _openai_model() -> OpenAIModel:
-    return OpenAIModel(
-        client_args={
-            "api_key": config.openai_api_key,
-            "base_url": config.openai_api_base,
-        },
-        model_id=config.openai_model,
-        params={"temperature": 0.3},
-    )
 
 
 def _frontend_role_to_strands(role: str) -> str | None:
@@ -159,23 +164,64 @@ class WritingAgentRunner:
 
     project_root: Path
 
-    def __init__(self, project_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        project_root: Path | None = None,
+        *,
+        model: Any | None = None,
+        model_factory: ModelFactory | None = None,
+    ) -> None:
         root = project_root or resolve_project_root()
         self.project_root = root
-        # OpenAIModel is a thin HTTP client; safe to share across orchestrator + sub-agents.
-        model = _openai_model()
+        # Injection seam: tests/evals pass a fake model or factory; production
+        # falls back to the active model from models.yaml / .env.
+        self._model_factory: ModelFactory = model_factory or create_active_model
+        active_model = model if model is not None else self._model_factory()
+        self._model = active_model
+        self._agent = self._build_agent(active_model)
+
+    def _build_agent(self, model: Any) -> Agent:
+        """Construct a fresh Strands agent bound to ``model``.
+
+        The model is a thin HTTP client; it is shared with sub-agents so that a
+        single active-model choice drives the orchestrator and its specialists.
+        """
         plugins: list[Any] = [WritingPlugin()]
         if _ACADEMIC_SKILL_DIR.is_dir():
             plugins.append(AgentSkills(skills=[str(_ACADEMIC_SKILL_DIR)]))
 
         tools = [*get_enabled_writing_tools(), *create_subagent_tools(model=model)]
-        self._agent = Agent(
+        return Agent(
             model=model,
-            system_prompt=_system_prompt(root),
+            system_prompt=_system_prompt(self.project_root),
             tools=tools,
             plugins=plugins,
             callback_handler=None,
         )
+
+    def rebuild_model(self) -> None:
+        """Rebuild the agent with a freshly resolved active model.
+
+        Conversation history and agent state are preserved through the existing
+        snapshot/restore path so switching models never wipes chat history.
+        """
+        messages = list(self._agent.messages)
+        agent_state = self.snapshot_agent_state()
+        new_model = self._model_factory()
+        self._model = new_model
+        self._agent = self._build_agent(new_model)
+        self.restore_from_snapshot(messages, agent_state)
+
+    def sync_subagents(self) -> None:
+        """Reconcile the live registry with enabled subagents (Settings toggles).
+
+        Rebuilds the agent with the same model + preserved conversation so that
+        enabling/disabling a specialist takes effect without losing chat state.
+        """
+        messages = list(self._agent.messages)
+        agent_state = self.snapshot_agent_state()
+        self._agent = self._build_agent(self._model)
+        self.restore_from_snapshot(messages, agent_state)
 
     @property
     def messages(self) -> list[Message]:
@@ -258,15 +304,34 @@ class WritingAgentRunner:
         session: SessionState,
         user_text: str,
         context: dict[str, Any] | None = None,
+        *,
+        request_id: str | None = None,
+        cancel_event: "asyncio.Event | None" = None,
+        invocation_extra: dict[str, Any] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
-        """Stream Strands events as WebSocket-ready dicts."""
+        """Stream Strands events as WebSocket-ready dicts.
+
+        Every event carries ``request_id`` (when provided) so the frontend can
+        correlate stream/tool/error/edit-group frames and cancellation. If
+        ``cancel_event`` is set mid-stream, forwarding stops and a final
+        ``chat/stream_end`` with ``cancelled: True`` is emitted; the model may
+        still finish server-side but its late deltas are not forwarded.
+        """
         session.pending_replacements.clear()
         prompt = _build_user_prompt(user_text, session, context)
         stream_id = _new_stream_id()
         accum = StreamAccum(stream_id=stream_id)
         outbound_queue: list[dict[str, Any]] = []
 
-        yield {"type": "chat/stream_start", "stream_id": stream_id}
+        def _stamp(event: dict[str, Any]) -> dict[str, Any]:
+            if request_id is not None:
+                event.setdefault("request_id", request_id)
+            return event
+
+        def _cancelled() -> bool:
+            return cancel_event is not None and cancel_event.is_set()
+
+        yield _stamp({"type": "chat/stream_start", "stream_id": stream_id})
 
         try:
             async for event in self._agent.stream_async(
@@ -275,34 +340,60 @@ class WritingAgentRunner:
                     "session": session,
                     "project_root": self.project_root,
                     "outbound_queue": outbound_queue,
+                    "request_id": request_id,
+                    **(invocation_extra or {}),
                 },
                 limits=Limits(turns=INVOCATION_TURN_LIMIT),
             ):
+                if _cancelled():
+                    self._agent.messages = _trim_messages(self._agent.messages, MAX_MESSAGES)
+                    yield _stamp({
+                        "type": "chat/stream_end",
+                        "stream_id": stream_id,
+                        "text": accum.text.strip(),
+                        "cancelled": True,
+                    })
+                    return
+
                 while outbound_queue:
                     queued = outbound_queue.pop(0)
                     for ws in queue_event_to_ws(queued, accum):
-                        yield ws
+                        yield _stamp(ws)
 
                 if not isinstance(event, dict):
                     continue
                 if "result" in event:
                     continue
                 for ws in strands_callback_to_ws(event, accum):
-                    yield ws
+                    yield _stamp(ws)
 
             while outbound_queue:
                 queued = outbound_queue.pop(0)
                 for ws in queue_event_to_ws(queued, accum):
-                    yield ws
+                    yield _stamp(ws)
 
         except Exception:
             logger.exception("Strands stream_async failed")
-            yield {"type": "error", "message": USER_FACING_ERROR}
-            yield {
+            yield _stamp({
+                "type": "error",
+                "message": USER_FACING_ERROR,
+                "code": "model_error",
+            })
+            yield _stamp({
                 "type": "chat/stream_end",
                 "stream_id": stream_id,
                 "text": "",
-            }
+            })
+            return
+
+        if _cancelled():
+            self._agent.messages = _trim_messages(self._agent.messages, MAX_MESSAGES)
+            yield _stamp({
+                "type": "chat/stream_end",
+                "stream_id": stream_id,
+                "text": accum.text.strip(),
+                "cancelled": True,
+            })
             return
 
         reply = accum.text.strip() or "(No response)"
@@ -315,4 +406,4 @@ class WritingAgentRunner:
         }
         if accum.reasoning_parts:
             end_msg["reasoning"] = "".join(accum.reasoning_parts)
-        yield end_msg
+        yield _stamp(end_msg)

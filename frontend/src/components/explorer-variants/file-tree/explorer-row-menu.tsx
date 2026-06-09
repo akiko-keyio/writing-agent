@@ -153,9 +153,7 @@ export function PierreExplorerRowMenu({
         side="bottom"
         sideOffset={4}
         className="min-w-48"
-        portalProps={{
-          "data-file-tree-context-menu-root": "true",
-        }}
+        data-file-tree-context-menu-root="true"
       >
         <ExplorerRowMenuContent
           item={item}

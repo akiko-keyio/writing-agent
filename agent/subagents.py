@@ -10,7 +10,7 @@ from typing import Any
 from strands import Agent
 from strands.types.tools import AgentTool
 
-from writing_tools import WRITING_TOOLS
+from writing_tools import READONLY_TOOLS, WRITING_TOOLS
 
 _AGENT_DIR = Path(__file__).resolve().parent
 DEFAULT_AGENTS_DIR = _AGENT_DIR / "plugins" / "academic-writing" / "agents"
@@ -79,18 +79,40 @@ def load_subagent_specs(agents_dir: Path | None = None) -> list[SubagentSpec]:
     return specs
 
 
+def tools_for_spec(spec: SubagentSpec) -> list:
+    """Permission-aware tool set for a specialist.
+
+    Read-only specialists (reviewer, check, researcher, verifier, arbiter,
+    reference-list) get only read tools and can never mutate documents. A
+    write-capable specialist (editor) additionally gets ``propose_edit_group``.
+    """
+    return list(READONLY_TOOLS) if spec.readonly else list(WRITING_TOOLS)
+
+
 def create_subagent_tools(
     *,
     model: Any,
     agents_dir: Path | None = None,
+    enabled_names: set[str] | None = None,
 ) -> list[AgentTool]:
-    """Build ``Agent.as_tool()`` wrappers for each sub-agent markdown definition."""
+    """Build ``Agent.as_tool()`` wrappers for each enabled sub-agent definition.
+
+    Disabled subagents (per ``subagents.yaml``) are not registered. Each
+    specialist receives a permission-scoped tool set.
+    """
+    if enabled_names is None:
+        from subagent_manager import get_enabled_subagent_names
+
+        enabled_names = get_enabled_subagent_names()
+
     tools: list[AgentTool] = []
     for spec in load_subagent_specs(agents_dir):
+        if spec.name not in enabled_names:
+            continue
         sub = Agent(
             model=model,
             system_prompt=spec.system_prompt,
-            tools=WRITING_TOOLS,
+            tools=tools_for_spec(spec),
             callback_handler=None,
         )
         tools.append(

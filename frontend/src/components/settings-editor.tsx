@@ -3,6 +3,8 @@ import { useCallback, useEffect, useId, useState } from "react"
 import {
   Add01Icon,
   ArrowLeft02Icon,
+  Bookmark02Icon,
+  BrainIcon,
   CheckListIcon,
   Delete01Icon,
   EyeIcon,
@@ -49,6 +51,7 @@ import {
   sidebarMenuButtonVariants,
 } from "@/components/ui/sidebar"
 import { MenuTwoLineEntry } from "@/components/menu-two-line-entry"
+import { modelDisplayName as modelLabel } from "@/components/model-switcher-trigger"
 import { HugeiconsIcon } from "@/lib/icons"
 import { contentReadingColumnClass } from "@/lib/content-layout"
 import { shell } from "@/lib/shell-chrome"
@@ -56,6 +59,8 @@ import { p, row, stack } from "@/lib/spacing"
 import { cn } from "@/lib/utils"
 
 import type {
+  MemoryData,
+  MemoryEntry,
   ModelEntryData,
   PluginItem,
   PluginsData,
@@ -79,7 +84,13 @@ function formatModelBasePreview(apiBase: string | undefined): string {
 }
 
 /** Sidebar item — each maps to its own content page. */
-export type SettingsSection = "models" | "rules" | "skills" | "tools" | "subagents"
+export type SettingsSection =
+  | "models"
+  | "rules"
+  | "skills"
+  | "tools"
+  | "subagents"
+  | "memory"
 
 interface SettingsNavProps {
   activeSection: SettingsSection
@@ -97,7 +108,14 @@ interface SettingsContentProps {
   onAddModel?: (model: Omit<ModelEntryData, "api_key_masked"> & { api_key?: string }) => void
   onUpdateModel?: (modelId: string, updates: Partial<ModelEntryData> & { api_key?: string }) => void
   onRemoveModel?: (modelId: string) => void
+  onSetActiveModel?: (modelId: string) => void
   onSetToolEnabled?: (toolId: string, enabled: boolean) => void
+  onSetSubagentEnabled?: (name: string, enabled: boolean) => void
+  memory?: MemoryData | null
+  memoryEnabled?: boolean
+  onSetMemoryEnabled?: (enabled: boolean) => void
+  onDeleteMemory?: (id: string) => void
+  onClearMemory?: () => void
 }
 
 /** Top-bar back — same chrome as Settings `SidebarMenuButton` (coss sidebar row). */
@@ -168,6 +186,12 @@ export function SettingsNav({
                 active={activeSection === "skills"}
                 onClick={() => onSectionChange("skills")}
               />
+              <SettingsNavItem
+                icon={Bookmark02Icon}
+                label="Memory"
+                active={activeSection === "memory"}
+                onClick={() => onSectionChange("memory")}
+              />
             </SidebarMenu>
           </SidebarGroupContent>
 
@@ -205,7 +229,14 @@ export function SettingsContent({
   onAddModel,
   onUpdateModel,
   onRemoveModel,
+  onSetActiveModel,
   onSetToolEnabled,
+  onSetSubagentEnabled,
+  memory,
+  memoryEnabled = true,
+  onSetMemoryEnabled,
+  onDeleteMemory,
+  onClearMemory,
 }: SettingsContentProps) {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
@@ -219,6 +250,7 @@ export function SettingsContent({
               onAdd={onAddModel}
               onUpdate={onUpdateModel}
               onRemove={onRemoveModel}
+              onSetActive={onSetActiveModel}
             />
           ) : null}
           {section === "rules" ? (
@@ -234,6 +266,16 @@ export function SettingsContent({
             <SubagentsPanel
               subagents={plugins?.subagents}
               onOpenFile={onOpenFile}
+              onSetSubagentEnabled={onSetSubagentEnabled}
+            />
+          ) : null}
+          {section === "memory" ? (
+            <MemoryPanel
+              memory={memory ?? null}
+              enabled={memoryEnabled}
+              onSetEnabled={onSetMemoryEnabled}
+              onDelete={onDeleteMemory}
+              onClear={onClearMemory}
             />
           ) : null}
         </div>
@@ -387,20 +429,48 @@ type ModelDialogState =
 
 function SettingsModelRow({
   title,
-  subtitle,
+  endpoint,
+  maskedKey,
+  active,
   onEdit,
   onDelete,
+  onSetActive,
 }: {
   title: string
-  subtitle?: string
+  endpoint?: string
+  maskedKey?: string
+  active: boolean
   onEdit: () => void
   onDelete: () => void
+  onSetActive?: () => void
 }) {
+  const subtitleParts = [endpoint, maskedKey ? `key ${maskedKey}` : ""].filter(Boolean)
   return (
     <Card className={settingsListCardClass}>
       <div className={cn(row.md, "justify-between text-sm font-normal", p[4].all)}>
-        <MenuTwoLineEntry title={title} subtitle={subtitle} />
+        <MenuTwoLineEntry
+          title={title}
+          subtitle={subtitleParts.join("  ·  ")}
+          meta={
+            active ? (
+              <Badge variant="success" size="sm">
+                Active
+              </Badge>
+            ) : undefined
+          }
+        />
         <div className={cn(row.sm, "shrink-0 items-center")}>
+          {!active && onSetActive ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={settingsActionButtonClass}
+              onClick={onSetActive}
+            >
+              Set active
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -472,6 +542,7 @@ function ModelsPanel({
   onAdd,
   onUpdate,
   onRemove,
+  onSetActive,
 }: {
   config: SettingsConfigData | null
   startAdding?: boolean
@@ -479,6 +550,7 @@ function ModelsPanel({
   onAdd?: (model: Omit<ModelEntryData, "api_key_masked"> & { api_key?: string }) => void
   onUpdate?: (modelId: string, updates: Partial<ModelEntryData> & { api_key?: string }) => void
   onRemove?: (modelId: string) => void
+  onSetActive?: (modelId: string) => void
 }) {
   const [dialogState, setDialogState] = useState<ModelDialogState | null>(null)
 
@@ -538,10 +610,13 @@ function ModelsPanel({
           {config.models.map((model) => (
             <SettingsModelRow
               key={model.id}
-              title={model.model || "Unnamed model"}
-              subtitle={formatModelBasePreview(model.api_base)}
+              title={modelLabel(model)}
+              endpoint={formatModelBasePreview(model.api_base)}
+              maskedKey={model.api_key_masked}
+              active={model.id === config.active}
               onEdit={() => setDialogState({ mode: "edit", model })}
               onDelete={() => onRemove?.(model.id)}
+              onSetActive={onSetActive ? () => onSetActive(model.id) : undefined}
             />
           ))}
         </div>
@@ -721,12 +796,139 @@ function RulesPanel({
   )
 }
 
+const MEMORY_KIND_LABELS: Record<MemoryEntry["kind"], string> = {
+  principle: "Principles",
+  knowledge: "Knowledge",
+  example: "Examples",
+}
+
+function MemoryEntryRow({
+  entry,
+  onDelete,
+}: {
+  entry: MemoryEntry
+  onDelete?: (id: string) => void
+}) {
+  const meta =
+    entry.polarity && entry.polarity !== "neutral" ? (
+      <Badge variant="secondary" size="sm">
+        {entry.polarity}
+      </Badge>
+    ) : undefined
+  return (
+    <div
+      className={cn(
+        row.md,
+        "justify-between border-b border-border text-sm font-normal last:border-b-0",
+        p[4].all,
+      )}
+    >
+      <MenuTwoLineEntry
+        title={entry.content || "(empty)"}
+        subtitle={entry.path ?? entry.scope}
+        meta={meta}
+      />
+      {onDelete ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Delete memory entry"
+          onClick={() => onDelete(entry.id)}
+        >
+          <HugeiconsIcon icon={Delete01Icon} aria-hidden="true" />
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+function MemoryPanel({
+  memory,
+  enabled,
+  onSetEnabled,
+  onDelete,
+  onClear,
+}: {
+  memory: MemoryData | null
+  enabled: boolean
+  onSetEnabled?: (enabled: boolean) => void
+  onDelete?: (id: string) => void
+  onClear?: () => void
+}) {
+  const kinds: MemoryEntry["kind"][] = ["principle", "knowledge", "example"]
+  const total = memory
+    ? memory.principle.length + memory.knowledge.length + memory.example.length
+    : 0
+
+  return (
+    <div className={stack.lg}>
+      <SectionHeader
+        title="Memory"
+        description="What the agent has learned from your edit decisions. Visible and controllable — never hidden prompt state."
+        action={
+          total > 0 && onClear ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={settingsActionButtonClass}
+              onClick={onClear}
+            >
+              Clear all
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <Card className={settingsListCardClass}>
+        <div className={cn(row.md, "justify-between text-sm font-normal", p[4].all)}>
+          <MenuTwoLineEntry
+            title="Enable memory"
+            subtitle="Record accepted, rejected, and replaced edits as examples."
+          />
+          {onSetEnabled ? (
+            <Switch
+              checked={enabled}
+              onCheckedChange={(checked) => onSetEnabled(checked)}
+              aria-label="Enable memory"
+            />
+          ) : null}
+        </div>
+      </Card>
+
+      {!memory || total === 0 ? (
+        <EmptyState
+          icon={BrainIcon}
+          title="No memory yet"
+          description="Apply, reject, or refine a suggested edit and it will be recorded here."
+        />
+      ) : (
+        kinds
+          .filter((kind) => memory[kind].length > 0)
+          .map((kind) => (
+            <div key={kind} className={stack.sm}>
+              <SectionHeader title={MEMORY_KIND_LABELS[kind]} />
+              <SettingsBrowseList>
+                {memory[kind].map((entry) => (
+                  <MemoryEntryRow key={entry.id} entry={entry} onDelete={onDelete} />
+                ))}
+              </SettingsBrowseList>
+            </div>
+          ))
+      )}
+    </div>
+  )
+}
+
 function SubagentsPanel({
   subagents,
   onOpenFile,
+  onSetSubagentEnabled,
 }: {
   subagents?: PluginItem[]
   onOpenFile?: (path: string) => void
+  onSetSubagentEnabled?: (name: string, enabled: boolean) => void
 }) {
   return (
     <div className={stack.lg}>
@@ -741,21 +943,29 @@ function SubagentsPanel({
               ...(agent.readonly ? ["read-only"] : []),
               ...(agent.is_background ? ["background"] : []),
             ]
+            const enabled = agent.enabled ?? true
             return (
               <SettingsBrowseRow
                 key={agent.id}
                 title={agent.name}
                 subtitle={agent.description}
                 meta={
-                  tags.length ? (
-                    <div className={cn(row.sm, "flex-wrap")}>
-                      {tags.map((tag) => (
-                        <Badge key={tag} variant="secondary" size="sm">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : undefined
+                  <div className={cn(row.sm, "flex-wrap items-center")}>
+                    {tags.map((tag) => (
+                      <Badge key={tag} variant="secondary" size="sm">
+                        {tag}
+                      </Badge>
+                    ))}
+                    {onSetSubagentEnabled ? (
+                      <Switch
+                        checked={enabled}
+                        onCheckedChange={(checked) =>
+                          onSetSubagentEnabled(agent.name, checked)
+                        }
+                        aria-label={`Enable ${agent.name}`}
+                      />
+                    ) : null}
+                  </div>
                 }
                 onOpen={agent.path ? () => onOpenFile?.(agent.path) : undefined}
               />

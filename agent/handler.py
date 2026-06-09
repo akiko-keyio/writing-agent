@@ -2,17 +2,62 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
 from connection import Connection
 from project_root import normalize_workspace_path
-from protocol import SessionState, apply_replacements
+from protocol import SessionState
+from review_handlers import (
+    group_state_events,
+    handle_document_save,
+    handle_group_apply,
+    handle_group_delete,
+    handle_group_propose,
+    handle_group_replace_edit,
+    handle_group_state,
+    handle_group_reject,
+    handle_memory_read,
+    handle_memory_update,
+)
 from strands_runner import messages_to_ui
 
 logger = logging.getLogger(__name__)
+
+_REVIEW_ROUTES = {
+    "group/propose": handle_group_propose,
+    "group/apply": handle_group_apply,
+    "group/reject": handle_group_reject,
+    "group/delete": handle_group_delete,
+    "group/replace_edit": handle_group_replace_edit,
+    "group/state": handle_group_state,
+    "document/save": handle_document_save,
+    "memory/read": handle_memory_read,
+    "memory/update": handle_memory_update,
+}
+
+
+def error_event(
+    message: str,
+    *,
+    code: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    """Standardized error frame: ``type``, ``message``, optional ``code``/``request_id``."""
+    event: dict[str, Any] = {"type": "error", "message": message}
+    if code:
+        event["code"] = code
+    if request_id:
+        event["request_id"] = request_id
+    return event
+
+
+def new_request_id() -> str:
+    return f"req-{uuid.uuid4().hex[:12]}"
 
 
 def _mask_api_key(key: str) -> str:
@@ -165,6 +210,10 @@ async def handle_message_events(
             "session_id": conn.current_session_id,
             "messages": messages_to_ui(runner.messages),
         }
+        # Restore the edit groups belonging to this session so the Review Queue
+        # rehydrates without the frontend guessing.
+        for event in group_state_events(conn):
+            yield event
         return
 
     if msg_type == "session/restore":
@@ -176,26 +225,12 @@ async def handle_message_events(
         return
 
     if msg_type == "settings/read":
-        from model_manager import ModelEntry, add_model, load_models
+        from model_manager import display_models_config
         from plugin_scanner import scan_plugins
-
-        mc = load_models()
-
-        # Seed from .env if models.yaml is empty
-        if not mc.models:
-            from config import config as env_config
-            if env_config.openai_api_key:
-                entry = ModelEntry(
-                    id=env_config.openai_model or "default",
-                    provider="OpenAI",
-                    model=env_config.openai_model or "gpt-4o-mini",
-                    api_key=env_config.openai_api_key,
-                    api_base=env_config.openai_api_base,
-                    temperature=0.3,
-                )
-                mc = add_model(entry)
-
         from tool_manager import list_tools_for_settings
+
+        # display_models_config falls back to .env in-memory; it never writes.
+        mc = display_models_config()
 
         yield {
             "type": "settings/data",
@@ -233,6 +268,8 @@ async def handle_message_events(
                     temperature=float(model_data.get("temperature", 0.3)),
                 )
                 config = add_model(entry)
+                # A new model may become active (first model); reflect at runtime.
+                runner.rebuild_model()
             elif action == "update_model":
                 if not model_id:
                     yield {"type": "error", "message": "model_id required for update"}
@@ -245,16 +282,23 @@ async def handle_message_events(
                     yield {"type": "error", "message": "Base URL is required"}
                     return
                 config = update_model(model_id, updates)
+                # Editing the active model's endpoint/key/name affects the runtime.
+                runner.rebuild_model()
             elif action == "remove_model":
                 if not model_id:
                     yield {"type": "error", "message": "model_id required for remove"}
                     return
                 config = remove_model(model_id)
+                # Removing the active model reselects a new active (or none); rebuild.
+                runner.rebuild_model()
             elif action == "set_active_model":
                 if not model_id:
                     yield {"type": "error", "message": "model_id required for set_active_model"}
                     return
                 config = set_active_model(model_id)
+                # Rebuild the live runner so the new model takes effect immediately
+                # while preserving conversation history/state.
+                runner.rebuild_model()
             elif action == "set_tool_enabled":
                 tool_id = str(raw.get("tool_id", "")).strip()
                 if not tool_id:
@@ -268,6 +312,26 @@ async def handle_message_events(
                 yield {
                     "type": "settings/updated",
                     "tools": tools,
+                }
+                return
+            elif action == "set_subagent_enabled":
+                from plugin_scanner import scan_plugins
+                from subagent_manager import set_subagent_enabled
+
+                subagent_id = str(raw.get("subagent_id", "")).strip()
+                if not subagent_id:
+                    yield {"type": "error", "message": "subagent_id required"}
+                    return
+                if "enabled" not in raw:
+                    yield {"type": "error", "message": "enabled required"}
+                    return
+                set_subagent_enabled(subagent_id, bool(raw.get("enabled")))
+                runner.sync_subagents()
+                # Return updated plugins so the frontend consumes a single model
+                # (plugins.subagents) for the Subagents list.
+                yield {
+                    "type": "settings/updated",
+                    "plugins": scan_plugins(),
                 }
                 return
             else:
@@ -288,58 +352,87 @@ async def handle_message_events(
         yield {"type": "plugins/data", "plugins": scan_plugins()}
         return
 
+    if msg_type in _REVIEW_ROUTES:
+        for event in _REVIEW_ROUTES[msg_type](conn, raw):
+            yield event
+        return
+
     if msg_type == "chat/cancel":
-        # UI stop — generation may continue server-side until stream ends.
+        # Real cancellation is handled by the connection loop (it owns the
+        # active turn's cancel event). Direct/unit callers get a no-op.
         return
 
     if msg_type == "chat/message":
-        text = str(raw.get("text", "")).strip()
-        if not text:
-            yield {"type": "error", "message": "Empty message"}
-            return
-
-        context = raw.get("context")
-        if context is not None and not isinstance(context, dict):
-            context = None
-
-        _apply_chat_context_buffers(session, context)
-
-        if not conn.current_session_id:
-            conn.current_session_id = conn.session_store.create_empty()
-            session.clear_pending_edits()
-            session.clear_buffers()
-            runner.clear_conversation()
-
-        async for event in runner.chat_turn_stream(session, text, context):
-            if event.get("type") == "error":
-                yield event
-                return
+        request_id = raw.get("request_id")
+        if not isinstance(request_id, str) or not request_id.strip():
+            request_id = new_request_id()
+        async for event in run_chat_turn(conn, raw, request_id=request_id):
             yield event
-
-        if conn.current_session_id:
-            conn.session_store.save(
-                conn.current_session_id,
-                runner,
-                session,
-                title=runner.title_from_messages(),
-            )
-
-        if session.pending_replacements:
-            doc = session.active_document()
-            new_doc, _errs = apply_replacements(doc, session.pending_replacements)
-            if session.active_path:
-                session.open_buffers[session.active_path] = new_doc
-            yield {
-                "type": "document/patch",
-                "path": session.active_path,
-                "document": new_doc,
-                "replacements": list(session.pending_replacements),
-            }
-            session.clear_pending_edits()
         return
 
     logger.warning("Unknown inbound message type: %s", msg_type)
-    yield {"type": "error", "message": "Unknown message type"}
+    yield error_event("Unknown message type", code="unknown_message")
+
+
+async def run_chat_turn(
+    conn: Connection,
+    raw: dict[str, Any],
+    *,
+    request_id: str,
+    cancel_event: asyncio.Event | None = None,
+) -> AsyncIterator[dict[str, Any]]:
+    """Run one chat turn as a stream of outbound frames.
+
+    Shared by the direct handler path (tests) and the cancellable connection
+    loop. All frames carry ``request_id``; the runner honors ``cancel_event``.
+    """
+    session = conn.session
+    runner = conn.runner
+
+    text = str(raw.get("text", "")).strip()
+    if not text:
+        yield error_event("Empty message", code="empty_message", request_id=request_id)
+        return
+
+    context = raw.get("context")
+    if context is not None and not isinstance(context, dict):
+        context = None
+
+    _apply_chat_context_buffers(session, context)
+
+    if not conn.current_session_id:
+        conn.current_session_id = conn.session_store.create_empty()
+        session.clear_pending_edits()
+        session.clear_buffers()
+        runner.clear_conversation()
+
+    async for event in runner.chat_turn_stream(
+        session,
+        text,
+        context,
+        request_id=request_id,
+        cancel_event=cancel_event,
+        invocation_extra={
+            "session_id": conn.current_session_id,
+            "edit_service": conn.edit_service,
+        },
+    ):
+        yield event
+        if event.get("type") == "error":
+            return
+
+    if conn.current_session_id:
+        conn.session_store.save(
+            conn.current_session_id,
+            runner,
+            session,
+            title=runner.title_from_messages(),
+        )
+
+    # Legacy auto-apply (pending_replacements -> document/patch) is removed.
+    # Document changes flow only through the EditGroup lifecycle
+    # (propose_edit_group -> validate -> apply -> document/save).
+    session.clear_pending_edits()
 
 
 def parse_json_message(data: str | bytes) -> dict[str, Any] | None:

@@ -31,8 +31,8 @@ def test_disable_and_persist(tools_yaml: Path):
     assert tools_yaml.exists()
     data = yaml.safe_load(tools_yaml.read_text(encoding="utf-8"))
     assert data["tools"]["read_file"]["enabled"] is False
-    assert get_enabled_tool_ids() == set()
-    assert get_enabled_writing_tools() == []
+    assert "read_file" not in get_enabled_tool_ids()
+    assert all(t.tool_name != "read_file" for t in get_enabled_writing_tools())
 
 
 def test_list_tools_for_settings_reflects_state(tools_yaml: Path):

@@ -726,7 +726,7 @@ function CompareSection() {
 
   return (
     <section id="compare" className={stack.lg}>
-      <SectionHeading title="场景对照" count={blocks.length} />
+      <SectionHeading id="compare" title="场景对照" count={blocks.length} />
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">✓ 正确 vs ✗ 误用</CardTitle>
@@ -750,7 +750,7 @@ function CompareSection() {
 function InPageScenarios() {
   return (
     <section id="in-page" className={stack.lg}>
-      <SectionHeading title="页内案例" layer="in-page" count={6} />
+      <SectionHeading id="in-page" title="页内案例" layer="in-page" count={6} />
       <div className={cn("grid md:grid-cols-2", gap.md)}>
         <ScenarioCard scene="设置页：分组 + 输入" pick="Card + Input" layer="in-page">
           <Card>
@@ -829,7 +829,7 @@ function InPageScenarios() {
 function FloatingScenarios() {
   return (
     <section id="floating" className={stack.lg}>
-      <SectionHeading title="浮层案例" layer="floating" count={7} />
+      <SectionHeading id="floating" title="浮层案例" layer="floating" count={7} />
       <div className={cn("grid md:grid-cols-2", gap.md)}>
         <ScenarioCard scene="工具栏：悬停看快捷键" pick="Tooltip" layer="floating">
           <Tooltip>
@@ -933,7 +933,7 @@ function FloatingScenarios() {
 function ModalScenarios() {
   return (
     <section id="modals" className={stack.lg}>
-      <SectionHeading title="模态案例" layer="modals" count={5} />
+      <SectionHeading id="modals" title="模态案例" layer="modals" count={5} />
       <div className={cn("grid md:grid-cols-2", gap.md)}>
         <ScenarioCard scene="邀请成员：多段表单" pick="Dialog" layer="modals">
           <Dialog>
@@ -1135,7 +1135,7 @@ function ToastScenarios() {
 
   return (
     <section id="toast" className={stack.lg}>
-      <SectionHeading title="Toast 案例" layer="toast" count={cases.length} />
+      <SectionHeading id="toast" title="Toast 案例" layer="toast" count={cases.length} />
       <div className={cn("grid sm:grid-cols-2 lg:grid-cols-3", gap.md)}>
         {cases.map((c) => (
           <ScenarioCard key={c.scene} scene={c.scene} pick={c.pick} layer="toast">
@@ -1253,7 +1253,7 @@ export function CossDesignSystemPage() {
 
           {show("overview") && (
             <section id="overview" className={stack.lg}>
-              <SectionHeading title="四层一览" count={4} />
+              <SectionHeading id="overview" title="四层一览" count={4} />
               <LayerOverviewCards />
             </section>
           )}

@@ -34,7 +34,7 @@ export const chatStreamdownRootClass = [
   /* Prose horizontal inset: chat-markdown-overflow.css (not root px-4 — boxes stay 16px) */
   /* Beat Streamdown defaults: space-y-4, heading mt-6/mb-2, hr my-6, blockquote my-4 */
   "[&>*]:!mt-0 [&>*]:!mb-0",
-].join(" ") as const
+].join(" ")
 
 /**
  * Thinking trace — compact process rhythm (`gap.sm` = 8px), muted body color,
@@ -44,7 +44,7 @@ export const chatReasoningStreamdownRootClass = [
   `flex flex-col ${gap.sm} whitespace-normal`,
   chatReasoningBodyClass,
   "[&>*]:!mt-0 [&>*]:!mb-0",
-].join(" ") as const
+].join(" ")
 
 /** Thinking expanded body — scroll inside this cap instead of growing the thread. */
 export const chatReasoningScrollMaxHeight = "14rem" as const

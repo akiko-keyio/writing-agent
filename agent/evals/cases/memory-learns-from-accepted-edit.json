@@ -1,0 +1,33 @@
+{
+  "id": "memory-learns-from-accepted-edit",
+  "suites": ["smoke"],
+  "description": "Applying a proposed edit records a positive memory example (memory is inspectable state, not hidden prompt state).",
+  "autopilot_policy": "suggest_only",
+  "document_path": "abstract.md",
+  "document": "# Abstract\n\nThis study utilizes a novel method.\n",
+  "instruction": "Improve word choice in the abstract.",
+  "model_script": [
+    { "tools": [{ "name": "read_file", "input": { "path": "abstract.md" } }] },
+    {
+      "tools": [
+        {
+          "name": "propose_edit_group",
+          "input": {
+            "path": "abstract.md",
+            "title": "Plainer verb",
+            "edits": [
+              { "kind": "replace", "old_text": "utilizes", "new_text": "uses" }
+            ]
+          }
+        }
+      ]
+    },
+    { "text": "Proposed a plainer verb." }
+  ],
+  "apply_proposed": true,
+  "expect": {
+    "must_call": ["read_file", "propose_edit_group"],
+    "must_create_group": true,
+    "memory_example_after": true
+  }
+}

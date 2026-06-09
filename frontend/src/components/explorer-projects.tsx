@@ -75,7 +75,7 @@ function ProjectEntryLines({
 
 /** 侧栏静态行：视觉对齐 MenuItem，独立 button 避免内联 Menu 抢焦点 */
 function ProjectPanelRow({
-  active = false,
+  active: _active = false,
   onClick,
   children,
   className,
@@ -98,7 +98,7 @@ function ProjectPanelRow({
 
 function ProjectMenuItem({
   entry,
-  active = false,
+  active: _active = false,
   linked,
   onSelect,
 }: {

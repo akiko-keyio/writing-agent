@@ -53,10 +53,12 @@ export type ChatMessageOut = {
   type: "chat/message"
   text: string
   context?: ChatMessageContext
+  request_id?: string
 }
 
 export type ChatCancelMessage = {
   type: "chat/cancel"
+  request_id?: string
 }
 
 export type SessionClearMessage = {
@@ -92,6 +94,7 @@ export type SettingsUpdateMessage = {
     | "remove_model"
     | "set_active_model"
     | "set_tool_enabled"
+    | "set_subagent_enabled"
   model?: {
     id?: string
     provider?: string
@@ -102,11 +105,110 @@ export type SettingsUpdateMessage = {
   }
   model_id?: string
   tool_id?: string
+  subagent_id?: string
   enabled?: boolean
 }
 
 export type PluginsListMessage = {
   type: "plugins/list"
+}
+
+/** Edit anchor — shared content-match assumptions with the backend. */
+export type EditAnchor = {
+  prefix_context: string
+  suffix_context: string
+  heading_path: string[]
+  paragraph_hint: string
+  content_hash: string
+}
+
+export type EditKind = "replace" | "delete" | "insert"
+
+export type EditStatus =
+  | "proposed"
+  | "applied"
+  | "rejected"
+  | "replaced"
+  | "stale"
+  | "error"
+  | "deleted"
+
+export type Edit = {
+  id: string
+  kind: EditKind
+  old_text: string
+  new_text: string
+  anchor: EditAnchor
+  replaces: string | null
+  replaced_by: string | null
+  rationale: string
+  risk: string
+  status: EditStatus
+}
+
+export type EditGroupStatus =
+  | "proposed"
+  | "partially_applied"
+  | "applied"
+  | "rejected"
+  | "replaced"
+  | "deleted"
+  | "stale"
+  | "error"
+
+export type EditGroup = {
+  id: string
+  session_id: string
+  path: string
+  title: string
+  summary: string
+  rationale: string
+  source_agent: string
+  confidence: number
+  status: EditGroupStatus
+  created_at: number
+  updated_at: number
+  edits: Edit[]
+}
+
+export type MemoryEntry = {
+  id: string
+  kind: "principle" | "knowledge" | "example"
+  scope: "global" | "document"
+  content: string
+  path: string | null
+  polarity: "positive" | "negative" | "preference" | "neutral"
+  source: string
+  links: string[]
+  metadata: Record<string, unknown>
+  created_at: number
+}
+
+export type MemoryData = {
+  principle: MemoryEntry[]
+  knowledge: MemoryEntry[]
+  example: MemoryEntry[]
+}
+
+/** Frontend → Agent (review / document-save / memory) */
+export type GroupApplyMessage = { type: "group/apply"; group_id: string }
+export type GroupRejectMessage = { type: "group/reject"; group_id: string }
+export type GroupDeleteMessage = { type: "group/delete"; group_id: string }
+export type GroupStateRequestMessage = { type: "group/state" }
+export type GroupReplaceEditMessage = {
+  type: "group/replace_edit"
+  group_id: string
+  edit_id: string
+  edit: Partial<Edit> & { kind: EditKind; old_text?: string; new_text?: string }
+}
+export type DocumentSaveMessage = { type: "document/save"; path: string }
+export type MemoryReadMessage = { type: "memory/read" }
+export type MemoryUpdateMessage = {
+  type: "memory/update"
+  action: "add" | "delete" | "set_enabled" | "clear_all"
+  entry?: Partial<MemoryEntry>
+  id?: string
+  enabled?: boolean
 }
 
 export type AgentInboundMessage =
@@ -122,23 +224,34 @@ export type AgentInboundMessage =
   | SettingsReadMessage
   | SettingsUpdateMessage
   | PluginsListMessage
+  | GroupApplyMessage
+  | GroupRejectMessage
+  | GroupDeleteMessage
+  | GroupStateRequestMessage
+  | GroupReplaceEditMessage
+  | DocumentSaveMessage
+  | MemoryReadMessage
+  | MemoryUpdateMessage
 
 /** Agent → Frontend */
 export type ChatStreamStartMessage = {
   type: "chat/stream_start"
   stream_id: string
+  request_id?: string
 }
 
 export type ChatMessageDeltaMessage = {
   type: "chat/message_delta"
   stream_id: string
   text: string
+  request_id?: string
 }
 
 export type ChatReasoningDeltaMessage = {
   type: "chat/reasoning_delta"
   stream_id: string
   text: string
+  request_id?: string
 }
 
 export type ChatStreamEndMessage = {
@@ -146,6 +259,13 @@ export type ChatStreamEndMessage = {
   stream_id: string
   text: string
   reasoning?: string
+  cancelled?: boolean
+  request_id?: string
+}
+
+export type ChatCancelledMessage = {
+  type: "chat/cancelled"
+  request_id?: string | null
 }
 
 export type AgentToolStatus =
@@ -164,6 +284,44 @@ export type ChatToolUpdateMessage = {
   input?: unknown
   output?: unknown
   error?: string
+  request_id?: string
+}
+
+/** Agent → Frontend: review / document-save / memory */
+export type GroupProposeMessage = {
+  type: "group/propose"
+  group: EditGroup
+  request_id?: string
+}
+
+export type GroupUpdateMessage = {
+  type: "group/update"
+  group: EditGroup
+}
+
+export type GroupStateMessage = {
+  type: "group/state"
+  session_id: string | null
+  groups: EditGroup[]
+}
+
+export type DocumentBufferMessage = {
+  type: "document/buffer"
+  path: string
+  document: string
+  reason: string
+}
+
+export type DocumentSavedMessage = {
+  type: "document/saved"
+  path: string
+  ok: boolean
+}
+
+export type MemoryDataMessage = {
+  type: "memory/data"
+  enabled: boolean
+  memory: MemoryData
 }
 
 /** Legacy single-shot reply (agent may still send for compatibility). */
@@ -199,6 +357,8 @@ export type SessionListResponseMessage = {
 export type AgentErrorMessage = {
   type: "error"
   message: string
+  code?: string
+  request_id?: string
 }
 
 export type SessionClearedMessage = {
@@ -237,6 +397,7 @@ export type PluginItem = {
   preview?: string
   readonly?: boolean
   is_background?: boolean
+  enabled?: boolean
   references?: { name: string; path: string }[]
 }
 
@@ -263,6 +424,7 @@ export type SettingsUpdatedMessage = {
   type: "settings/updated"
   config?: SettingsConfigData
   tools?: ToolEntryData[]
+  plugins?: PluginsData
 }
 
 export type PongMessage = {
@@ -275,8 +437,15 @@ export type AgentOutboundMessage =
   | ChatReasoningDeltaMessage
   | ChatToolUpdateMessage
   | ChatStreamEndMessage
+  | ChatCancelledMessage
   | ChatMessageIn
   | DocumentPatchMessage
+  | GroupProposeMessage
+  | GroupUpdateMessage
+  | GroupStateMessage
+  | DocumentBufferMessage
+  | DocumentSavedMessage
+  | MemoryDataMessage
   | SessionCreatedMessage
   | SessionRestoredMessage
   | SessionClearedMessage
@@ -293,8 +462,15 @@ const OUTBOUND_TYPES = new Set([
   "chat/reasoning_delta",
   "chat/tool_update",
   "chat/stream_end",
+  "chat/cancelled",
   "chat/message",
   "document/patch",
+  "group/propose",
+  "group/update",
+  "group/state",
+  "document/buffer",
+  "document/saved",
+  "memory/data",
   "session/created",
   "session/restored",
   "session/cleared",

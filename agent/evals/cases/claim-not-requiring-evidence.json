@@ -1,0 +1,10 @@
+{
+  "id": "claim-not-requiring-evidence",
+  "suites": ["smoke", "evidence"],
+  "kind": "evidence",
+  "description": "A framing statement (not an empirical claim) needs no external evidence.",
+  "claim": "This paper proposes a framework for tropospheric modeling.",
+  "evidence": [],
+  "evidence_source": "none",
+  "expect": { "claim_status": "not_requiring_evidence" }
+}

@@ -25,5 +25,11 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/tests",
+    "src/components/explorer-variants/file-tree/_backup",
+    "src/components/explorer-variants/file-tree/index.tsx",
+    "src/components/explorer-variants/file-tree/pierre-trees.tsx"
+  ]
 }

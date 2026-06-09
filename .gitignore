@@ -1,5 +1,7 @@
 .env
 models.yaml
+tools.yaml
+subagents.yaml
 .writing-agent/
 .venv/
 __pycache__/
@@ -9,5 +11,6 @@ frontend/dist/
 frontend/.vite-cache/
 agent/.pytest_cache/
 agent/data/
+agent/evals/reports/
 .tmp-*.log
 .DS_Store

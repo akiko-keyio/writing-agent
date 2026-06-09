@@ -1,0 +1,35 @@
+{
+  "id": "mechanical-terminology",
+  "suites": ["smoke"],
+  "description": "Agent fixes inconsistent terminology via a validated edit group; document is not mutated directly.",
+  "autopilot_policy": "suggest_only",
+  "document_path": "style.md",
+  "document": "# Style Guide\n\nThe button colour is blue. Keep the color consistent across the app.\n",
+  "instruction": "Make the colour/color terminology consistent.",
+  "model_script": [
+    { "tools": [{ "name": "read_file", "input": { "path": "style.md" } }] },
+    {
+      "tools": [
+        {
+          "name": "propose_edit_group",
+          "input": {
+            "path": "style.md",
+            "title": "Use US spelling 'color'",
+            "summary": "Normalize 'colour' to 'color'.",
+            "edits": [
+              { "kind": "replace", "old_text": "colour", "new_text": "color", "risk": "low" }
+            ]
+          }
+        }
+      ]
+    },
+    { "text": "I proposed a one-edit group to normalize the spelling." }
+  ],
+  "expect": {
+    "must_call": ["read_file", "propose_edit_group"],
+    "must_create_group": true,
+    "valid_anchor_count": "all",
+    "must_not_emit": ["document/patch"],
+    "document_unchanged": true
+  }
+}

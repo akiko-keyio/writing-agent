@@ -267,7 +267,7 @@ function CodeBlockViewport({
       className={cn(
         "no-scrollbar overflow-auto overscroll-x-none text-sm leading-6",
         p[4].x,
-        p[3.5].y,
+        p[3].y,
         rounding === "top" ? "rounded-t-lg" : "rounded-lg",
         "bg-card",
       )}

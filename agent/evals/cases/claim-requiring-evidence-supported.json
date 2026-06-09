@@ -1,0 +1,12 @@
+{
+  "id": "claim-requiring-evidence-supported",
+  "suites": ["smoke", "evidence"],
+  "kind": "evidence",
+  "description": "A factual claim backed by retrieved evidence is classified as supported.",
+  "claim": "Method X increases accuracy by 5 percent over the baseline.",
+  "evidence": [
+    "On the benchmark, Method X increases accuracy by 5 percent over the baseline."
+  ],
+  "evidence_source": "inline-fixture",
+  "expect": { "claim_status": "supported" }
+}

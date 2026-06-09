@@ -409,7 +409,7 @@ export function shellExplorerTreeRowButtonClass({
 
 /** @deprecated 使用 shellExplorerTreeRowButtonClass */
 export function shellExplorerTreeRowClass({
-  active,
+  active: _active,
   className,
 }: {
   active?: boolean

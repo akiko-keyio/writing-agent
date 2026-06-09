@@ -23,14 +23,24 @@ class ModelEntry:
     temperature: float = 0.3
 
     def to_dict(self, mask_key: bool = False) -> dict[str, Any]:
-        return {
+        """Serialize a model entry.
+
+        When ``mask_key`` is True (outbound to the frontend) the raw key is never
+        included — only ``api_key_masked``. When False (persisted to yaml) the
+        real ``api_key`` is written.
+        """
+        base = {
             "id": self.id,
             "provider": self.provider,
             "model": self.model,
-            "api_key": _mask_key(self.api_key) if mask_key else self.api_key,
             "api_base": self.api_base,
             "temperature": self.temperature,
         }
+        if mask_key:
+            base["api_key_masked"] = _mask_key(self.api_key)
+        else:
+            base["api_key"] = self.api_key
+        return base
 
 
 @dataclass
@@ -61,6 +71,41 @@ def _mask_key(key: str) -> str:
 def _slugify(text: str) -> str:
     """Create a URL/filesystem-safe slug."""
     return re.sub(r"[^a-z0-9-]", "-", text.lower()).strip("-")
+
+
+def env_fallback_entry() -> ModelEntry | None:
+    """Build an in-memory model entry from .env (never persisted).
+
+    Used purely to display a usable fallback in Settings when ``models.yaml`` is
+    empty. ``settings/read`` must not write secret-bearing config to disk.
+    """
+    from config import config as env_config
+
+    if not env_config.openai_api_key:
+        return None
+    return ModelEntry(
+        id="env",
+        provider="OpenAI (.env)",
+        model=env_config.openai_model or "gpt-4o-mini",
+        api_key=env_config.openai_api_key,
+        api_base=env_config.openai_api_base,
+        temperature=0.3,
+    )
+
+
+def display_models_config() -> ModelsConfig:
+    """Models config for Settings display.
+
+    Returns the persisted ``models.yaml`` config, or an in-memory env fallback
+    when empty. This function never writes to disk.
+    """
+    config = load_models()
+    if config.models:
+        return config
+    fallback = env_fallback_entry()
+    if fallback is not None:
+        return ModelsConfig(active=fallback.id, models=[fallback])
+    return config
 
 
 def load_models() -> ModelsConfig:

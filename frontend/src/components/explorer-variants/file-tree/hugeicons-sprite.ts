@@ -11,7 +11,9 @@ function camelToKebab(name: string): string {
 }
 
 function serializeHugeiconElement([tag, attrs]: IconSvgElement[number]): string {
-  const normalizedAttrs: Record<string, string> = { ...attrs }
+  const normalizedAttrs: Record<string, string> = Object.fromEntries(
+    Object.entries(attrs).map(([key, value]) => [key, String(value)]),
+  )
   delete normalizedAttrs.key
 
   // Pierre `[data-item-section='icon'] { fill: currentColor }` 会填充实心块；

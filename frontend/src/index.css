@@ -333,4 +333,19 @@
   .chrome-row-hover-fade-overlay-bg--sidebar-selected {
     --chrome-row-fade-end: var(--sidebar-item-selected);
   }
+
+  /* Proposed edit-group anchors highlighted in the document editor. */
+  .edit-anchor {
+    background-color: color-mix(in srgb, var(--warning) 20%, transparent);
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--warning) 30%, transparent);
+  }
+
+  .edit-anchor-stale {
+    background-color: transparent;
+    color: var(--muted-foreground);
+    text-decoration: line-through;
+    text-decoration-color: var(--muted-foreground);
+    box-shadow: none;
+  }
 }

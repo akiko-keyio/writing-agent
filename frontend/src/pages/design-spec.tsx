@@ -38,16 +38,13 @@ import {
 } from "@/components/ui/menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  SidebarGroup,
-  SidebarGroupContent,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar"
-import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"
 import { shell } from "@/lib/shell-chrome"
-import { gap, p, row, stack } from "@/lib/spacing"
+import { gap, p, stack } from "@/lib/spacing"
 import { cn } from "@/lib/utils"
 
 // ──────── Section wrapper ────────

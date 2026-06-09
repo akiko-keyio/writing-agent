@@ -1,7 +1,8 @@
 import { ChatThread } from "@/components/chat-thread"
 import type { AgentChatMessage } from "@/hooks/use-agent-session"
 import type { EditorSelection } from "@/components/document-editor"
-import type { ModelEntryData } from "@/lib/agent-protocol"
+import type { Edit, EditGroup, ModelEntryData } from "@/lib/agent-protocol"
+import type { ChatAttachment } from "@/lib/chat-attachments"
 import { shell } from "@/lib/shell-chrome"
 import { cn } from "@/lib/utils"
 
@@ -10,7 +11,7 @@ interface ChatPanelProps {
   messages: AgentChatMessage[]
   agentThinking: boolean
   isStreaming: boolean
-  connectionState: string
+  connectionState: "connecting" | "open" | "closed"
   activeFilename: string | null
   activePath: string | null
   documentContent: string
@@ -27,6 +28,14 @@ interface ChatPanelProps {
   activeModelId?: string | null
   onSelectModel?: (modelId: string) => void
   onOpenModelsSettings?: () => void
+  editGroups?: EditGroup[]
+  onApplyGroup?: (groupId: string) => void
+  onRejectGroup?: (groupId: string) => void
+  onDeleteGroup?: (groupId: string) => void
+  onSelectEdit?: (group: EditGroup, edit: Edit) => void
+  attachments?: ChatAttachment[]
+  onRemoveAttachment?: (id: string) => void
+  onClearAttachments?: () => void
 }
 
 export function ChatPanel({
@@ -47,6 +56,14 @@ export function ChatPanel({
   activeModelId = null,
   onSelectModel,
   onOpenModelsSettings,
+  editGroups = [],
+  onApplyGroup,
+  onRejectGroup,
+  onDeleteGroup,
+  onSelectEdit,
+  attachments = [],
+  onRemoveAttachment,
+  onClearAttachments,
 }: ChatPanelProps) {
   return (
     <div
@@ -83,6 +100,14 @@ export function ChatPanel({
               activeModelId={activeModelId}
               onSelectModel={onSelectModel}
               onOpenModelsSettings={onOpenModelsSettings}
+              editGroups={editGroups}
+              onApplyGroup={onApplyGroup}
+              onRejectGroup={onRejectGroup}
+              onDeleteGroup={onDeleteGroup}
+              onSelectEdit={onSelectEdit}
+              attachments={attachments}
+              onRemoveAttachment={onRemoveAttachment}
+              onClearAttachments={onClearAttachments}
             />
           </div>
         </>

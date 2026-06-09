@@ -84,29 +84,10 @@ The current design prioritizes simplicity. The following directions are deferred
 
 **3. Formal engine + LLM complementary architecture.** LLM and formal reasoning have complementary strengths. LLM handles semantics: interpreting user intent, judging text quality, reasoning in ambiguous contexts. Formal engine handles logic: consistency checking, conflict detection, dependency tracing across a rule set. Neither does the other's job well (Constraint #3: LLM fails at precise logic; formal engines cannot handle semantic ambiguity). Combined, a feedback loop emerges: LLM proposes new rules from user decisions → formal engine checks consistency against existing rules → on conflict, engine pinpoints the exact collision → LLM interprets the conflict semantically and suggests resolution → user decides → engine updates. Each step stays within its component's capability boundary. The Principle DAG (direction 1) is a natural substrate for this engine (e.g., dependency resolution via PubGrub-style algorithms). Deferred until the rule set grows complex enough that human management becomes impractical — the engine's value scales with rule count and interdependency.
 
-## Oute DATE
+---
 
- 5. Review
-
-Goals:
-1. User evaluates each edit in clean document context.
-2. User decides edits thoroughly and efficiently.
-3. Agent learns from resolved edits without ambiguity.
-
-Design:
-- Document remains clean text at all times. (1)
-- Agent proposes edits grouped by issue in a separate interface. (2, 3)
-- Default choice per edit is configurable: all old, all new, or subagent recommendation. (2)
-- For each edit:
-  - User chooses old or new. Choice syncs to document immediately. (1)
-  - User can also request adjustment or explanation. (2)
-  - Adjustment: agent proposes a replacement in the same group. (2, 3)
-  - Explanation: agent responds in chat. (2)
-- User resolves a group when satisfied. Resolved groups archive from the interface. (2)
-- Resolution includes the final outcome of each edit. Agent learns from this. (3)
-
-Notes:
-- An edit closes when agent proposes a revised edit with the same old text (replaced), or when its old text is no longer locatable in the document (stale).
-- Replaced edits count as chose old. Stale edits are not learned from.
-- Replaced edits revert to old in the document. Stale edits do not modify the document (the user's edit is preserved).
-- Both cannot be toggled.
+> Note: An earlier "immediate-sync" Review sketch (per-edit choices syncing to the
+> document instantly) was removed here because it contradicts the authoritative
+> apply-group model in section 5 above. The apply-group model — where the document
+> is unchanged until a coherent EditGroup is applied through backend validation —
+> is the design of record. See `handoff/01-product-architecture.md`.
