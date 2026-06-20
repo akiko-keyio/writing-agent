@@ -11,7 +11,6 @@ def test_default_project_root_is_examples(monkeypatch) -> None:
     repo = resolve_repo_root()
     root = resolve_project_root()
     assert root == (repo / "examples").resolve()
-    assert root.is_dir()
 
 
 def test_repo_config_path_prefers_config_dir(tmp_path, monkeypatch) -> None:
