@@ -5,7 +5,7 @@ export interface WorkspaceFileNode {
   children?: WorkspaceFileNode[]
 }
 
-export const DEFAULT_WORKSPACE_FILE = "examples/test-text.md"
+export const DEFAULT_WORKSPACE_FILE = "test-text.md"
 
 export async function fetchWorkspaceTree(): Promise<WorkspaceFileNode[]> {
   const res = await fetch("/api/workspace/tree")
@@ -98,15 +98,72 @@ export async function createWorkspaceFolder(
   }
 }
 
-export async function openWorkspaceFileFolder(filePath: string): Promise<void> {
-  const res = await fetch("/api/workspace/open-folder", {
+export async function openContainingFolder(input: {
+  rootName: string
+  itemPath: string
+  samplePaths: string[]
+}): Promise<void> {
+  const res = await fetch("/api/workspace/open-containing-folder", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: filePath }),
+    body: JSON.stringify(input),
   })
   if (!res.ok) {
     throw new Error(
-      await errorFromResponse(res, `Failed to open folder (${res.status})`)
+      await errorFromResponse(res, `Failed to open folder (${res.status})`),
     )
   }
+}
+
+export async function openWorkspaceFileFolder(
+  filePath: string,
+): Promise<string> {
+  const folderPath = await fetchWorkspaceFileFolderPath(filePath)
+  await openAbsoluteFolder(folderPath)
+  return folderPath
+}
+
+export async function resolveLocalFolderRoot(input: {
+  rootName: string
+  samplePaths: string[]
+}): Promise<string> {
+  const res = await fetch("/api/workspace/resolve-local-root", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) {
+    throw new Error(
+      await errorFromResponse(res, `Failed to resolve local folder (${res.status})`),
+    )
+  }
+  const data = (await res.json()) as { rootPath: string }
+  return data.rootPath
+}
+
+export async function openAbsoluteFolder(folderPath: string): Promise<void> {
+  const res = await fetch("/api/workspace/open-absolute-folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: folderPath }),
+  })
+  if (!res.ok) {
+    throw new Error(
+      await errorFromResponse(res, `Failed to open folder (${res.status})`),
+    )
+  }
+}
+
+export async function verifyLocalFolderRoot(input: {
+  rootPath: string
+  samplePaths: string[]
+}): Promise<string | null> {
+  const res = await fetch("/api/workspace/verify-local-root", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) return null
+  const data = (await res.json()) as { rootPath?: string }
+  return typeof data.rootPath === "string" ? data.rootPath : input.rootPath
 }

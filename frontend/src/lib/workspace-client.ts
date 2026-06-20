@@ -1,12 +1,15 @@
 import {
+  copyLocalFolderContainingPath,
+  openLocalFolderContainingPath,
+} from "@/lib/local-folder-actions"
+import { collectMarkdownPaths } from "@/lib/local-folder-paths"
+import {
   buildTreeFromDirectoryHandle,
   createFolderInDirectoryHandle,
-  relativeFolderPathForFile,
   renameFileInDirectoryHandle,
   readFileFromDirectoryHandle,
   writeFileToDirectoryHandle,
 } from "@/lib/local-workspace"
-import { pathDirname } from "@/lib/path"
 import type { WorkspaceFileNode } from "@/lib/workspace-api"
 import {
   createWorkspaceFolder,
@@ -29,7 +32,7 @@ export interface WorkspaceClient {
   createFolder(path: string): Promise<void>
   renameFile(path: string, newPath: string): Promise<void>
   getFileFolderPath(path: string): Promise<string>
-  openFileFolder(path: string): Promise<void>
+  openFileFolder(path: string): Promise<string>
 }
 
 export function createProjectWorkspaceClient(): WorkspaceClient {
@@ -47,8 +50,19 @@ export function createProjectWorkspaceClient(): WorkspaceClient {
 }
 
 export function createFolderWorkspaceClient(
-  handle: FileSystemDirectoryHandle
+  handle: FileSystemDirectoryHandle,
+  projectId: string,
+  samplePaths: () => string[],
 ): WorkspaceClient {
+  const rootName = handle.name
+
+  const ensureSamplePaths = async (): Promise<string[]> => {
+    const cached = samplePaths()
+    if (cached.length > 0) return cached
+    const tree = await buildTreeFromDirectoryHandle(handle)
+    return collectMarkdownPaths(flattenWorkspaceTreeRoots(tree))
+  }
+
   return {
     id: "folder",
     label: handle.name,
@@ -59,13 +73,20 @@ export function createFolderWorkspaceClient(
     createFolder: (path) => createFolderInDirectoryHandle(handle, path),
     renameFile: (path, newPath) =>
       renameFileInDirectoryHandle(handle, path, newPath),
-    getFileFolderPath: (path) =>
-      Promise.resolve(relativeFolderPathForFile(path) || pathDirname(path)),
-    openFileFolder: () => {
-      throw new Error(
-        "Opening folder paths is only available for the project workspace"
-      )
-    },
+    getFileFolderPath: async (path) =>
+      copyLocalFolderContainingPath(
+        projectId,
+        rootName,
+        path,
+        await ensureSamplePaths(),
+      ),
+    openFileFolder: async (path) =>
+      openLocalFolderContainingPath(
+        projectId,
+        rootName,
+        path,
+        await ensureSamplePaths(),
+      ),
   }
 }
 

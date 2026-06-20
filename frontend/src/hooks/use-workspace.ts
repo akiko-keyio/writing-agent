@@ -5,6 +5,7 @@ import { flattenMarkdownPaths } from "@/lib/flatten-paths"
 import { pickWorkspaceFolder } from "@/lib/local-workspace"
 import {
   folderProjectEntry,
+  isFolderProject,
   loadRecentProjects,
   rememberRecentProject,
   REPO_PROJECT,
@@ -24,8 +25,12 @@ import {
   createFolderWorkspaceClient,
   createProjectWorkspaceClient,
   findFirstMarkdownPath,
+  flattenWorkspaceTreeRoots,
   type WorkspaceClient,
 } from "@/lib/workspace-client"
+import { bindLocalFolderRoot } from "@/lib/local-folder-actions"
+import { clearFolderAbsoluteRoot } from "@/lib/folder-root-store"
+import { collectMarkdownPaths } from "@/lib/local-folder-paths"
 
 export function useWorkspace() {
   const [fileTree, setFileTree] = useState<WorkspaceFileNode[]>([])
@@ -35,6 +40,7 @@ export function useWorkspace() {
   const [activeProject, setActiveProject] = useState<ProjectEntry | null>(
     REPO_PROJECT
   )
+  const [agentProjectRoot, setAgentProjectRoot] = useState<string | null>(null)
   const [recentProjects, setRecentProjects] = useState<ProjectEntry[]>(() => {
     const loaded = loadRecentProjects()
     return loaded.length > 0 ? loaded : [REPO_PROJECT]
@@ -45,13 +51,19 @@ export function useWorkspace() {
 
   const workspaceRef = useRef<WorkspaceClient>(createProjectWorkspaceClient())
   const folderHandlesRef = useRef(new Map<string, FileSystemDirectoryHandle>())
+  const folderSamplePathsRef = useRef<string[]>([])
   const handlesHydratedRef = useRef(false)
   const fileOpenCallbackRef = useRef<((path: string) => void) | null>(null)
+  const fileChangedCallbackRef = useRef<((path: string) => void) | null>(null)
 
   const mentionablePaths = flattenMarkdownPaths(fileTree)
 
   const setFileOpenCallback = useCallback((callback: (path: string) => void) => {
     fileOpenCallbackRef.current = callback
+  }, [])
+
+  const setFileChangedCallback = useCallback((callback: (path: string) => void) => {
+    fileChangedCallbackRef.current = callback
   }, [])
 
   const refreshFileTree = useCallback(async () => {
@@ -72,10 +84,16 @@ export function useWorkspace() {
   const applyFolderWorkspace = useCallback(
     (handle: FileSystemDirectoryHandle) => {
       const entry = folderProjectEntry(handle)
+      clearFolderAbsoluteRoot(entry.id)
       folderHandlesRef.current.set(entry.id, handle)
       void saveWorkspaceHandle(entry.id, handle)
       rememberFolderHandle(entry.id)
-      workspaceRef.current = createFolderWorkspaceClient(handle)
+      setAgentProjectRoot(null)
+      workspaceRef.current = createFolderWorkspaceClient(
+        handle,
+        entry.id,
+        () => folderSamplePathsRef.current,
+      )
       setActiveProject(entry)
       setRecentProjects(rememberRecentProject(entry))
       setWorkspaceEpoch((epoch) => epoch + 1)
@@ -84,27 +102,29 @@ export function useWorkspace() {
     [rememberFolderHandle]
   )
 
-  const handleOpenFolder = useCallback(async () => {
-    try {
-      const handle = await pickWorkspaceFolder()
-      const entry = applyFolderWorkspace(handle)
-      toastManager.add({
-        type: "success",
-        title: "Workspace opened",
-        description: entry.name,
-      })
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return
+  const handleOpenFolder = useCallback(() => {
+    void (async () => {
+      try {
+        const handle = await pickWorkspaceFolder()
+        const entry = applyFolderWorkspace(handle)
+        toastManager.add({
+          type: "success",
+          title: "Workspace opened",
+          description: entry.name,
+        })
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return
 
-      const message =
-        err instanceof Error ? err.message : "Could not open folder"
+        const message =
+          err instanceof Error ? err.message : "Could not open folder"
 
-      toastManager.add({
-        type: "error",
-        title: "Open workspace failed",
-        description: message,
-      })
-    }
+        toastManager.add({
+          type: "error",
+          title: "Open workspace failed",
+          description: message,
+        })
+      }
+    })()
   }, [applyFolderWorkspace])
 
   const handleSelectProject = useCallback(
@@ -115,6 +135,7 @@ export function useWorkspace() {
       }
       if (entry.id === REPO_PROJECT.id) {
         workspaceRef.current = createProjectWorkspaceClient()
+        setAgentProjectRoot(null)
         setActiveProject(entry)
         setRecentProjects(rememberRecentProject(entry))
         setWorkspaceEpoch((epoch) => epoch + 1)
@@ -172,6 +193,23 @@ export function useWorkspace() {
   }, [refreshLinkedFolderHandles])
 
   useEffect(() => {
+    if (!import.meta.hot) return
+
+    const refreshProjectTree = () => {
+      if (workspaceRef.current.id !== "project") return
+      void refreshFileTree()
+    }
+
+    import.meta.hot.on("workspace:tree-changed", refreshProjectTree)
+    import.meta.hot.on("workspace:file-changed", (data: { path: string }) => {
+      fileChangedCallbackRef.current?.(data.path)
+    })
+    return () => {
+      import.meta.hot?.off("workspace:tree-changed", refreshProjectTree)
+    }
+  }, [refreshFileTree])
+
+  useEffect(() => {
     let cancelled = false
 
     void (async () => {
@@ -185,6 +223,9 @@ export function useWorkspace() {
         if (cancelled) return
 
         setFileTree(tree)
+        folderSamplePathsRef.current = collectMarkdownPaths(
+          flattenWorkspaceTreeRoots(tree),
+        )
 
         const initialPath =
           workspace.id === "project"
@@ -220,18 +261,46 @@ export function useWorkspace() {
     }
   }, [workspaceEpoch])
 
+  useEffect(() => {
+    if (workspaceRef.current.id !== "folder") return
+    if (!activeProject || !isFolderProject(activeProject)) return
+
+    folderSamplePathsRef.current = collectMarkdownPaths(
+      flattenWorkspaceTreeRoots(fileTree),
+    )
+    const handle = folderHandlesRef.current.get(activeProject.id)
+    if (!handle) return
+
+    let cancelled = false
+    void (async () => {
+      const root = await bindLocalFolderRoot(
+        activeProject.id,
+        handle.name,
+        folderSamplePathsRef.current,
+      )
+      if (!cancelled) setAgentProjectRoot(root)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [fileTree, activeProject])
+
+  const getWorkspace = useCallback(() => workspaceRef.current, [])
+
   return {
     fileTree,
     treeLoading,
     treeError,
     activeProject,
+    agentProjectRoot,
     recentProjects,
     linkedFolderIds,
     mentionablePaths,
-    workspace: workspaceRef.current,
+    getWorkspace,
     handleOpenFolder,
     handleSelectProject,
     refreshFileTree,
     setFileOpenCallback,
+    setFileChangedCallback,
   }
 }
