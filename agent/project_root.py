@@ -6,11 +6,21 @@ import os
 from pathlib import Path
 
 _AGENT_DIR = Path(__file__).resolve().parent
-_DEFAULT_ROOT = _AGENT_DIR.parent
+_REPO_ROOT = _AGENT_DIR.parent
+_DEFAULT_WORKSPACE_SUBDIR = "examples"
+_DEFAULT_ROOT = _REPO_ROOT / _DEFAULT_WORKSPACE_SUBDIR
+
+
+def resolve_repo_root() -> Path:
+    """Monorepo / git root (parent of ``agent/``). Used for shared state and assets."""
+    raw = os.getenv("WRITING_AGENT_REPO_ROOT", "").strip()
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return _REPO_ROOT.resolve()
 
 
 def resolve_project_root() -> Path:
-    """Repo / workspace root (parent of ``agent/``), overridable via env."""
+    """Writing workspace on disk. Defaults to ``examples/`` under the repo root."""
     raw = os.getenv("WRITING_AGENT_PROJECT_ROOT", "").strip()
     if raw:
         return Path(raw).expanduser().resolve()
