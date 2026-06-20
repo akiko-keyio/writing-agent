@@ -4,8 +4,8 @@ import {
   EXPLORER_TREE_ROW_ACTION_INSET_END_PX,
   EXPLORER_TREE_ROW_ACTION_WIDTH_PX,
   EXPLORER_TREE_ROW_ICON_PX,
-} from "@/lib/explorer-tree-row-density"
-import { treeIndent } from "@/lib/spacing"
+} from "@/lib/shared/explorer-tree-row-density"
+import { treeIndent } from "@/lib/shell/spacing"
 
 /** Pierre host：行 hover 底 — 与 shell Toggle / 侧栏行一致 */
 const ROW_HOVER_BG =

@@ -7,11 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from connection import Connection
-from handler import handle_message_events
-from session_store import SessionStore
-from subagents import create_subagent_tools, load_subagent_specs, tools_for_spec
-from verification import (
+from writing_agent.server.connection import Connection
+from writing_agent.server.handler import handle_message_events
+from writing_agent.domain.session_store import SessionStore
+from writing_agent.runtime.subagents import create_subagent_tools, load_subagent_specs, tools_for_spec
+from writing_agent.tools.verification import (
     CONTRADICTED,
     MISSING_EVIDENCE,
     NOT_REQUIRING_EVIDENCE,
@@ -22,13 +22,13 @@ from verification import (
 
 @pytest.fixture(autouse=True)
 def _models(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("model_manager._MODELS_FILE", tmp_path / "models.yaml")
+    monkeypatch.setattr("writing_agent.runtime.model_manager._MODELS_FILE", tmp_path / "models.yaml")
 
 
 @pytest.fixture
 def subagents_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / "subagents.yaml"
-    monkeypatch.setattr("subagent_manager._SUBAGENTS_FILE", path)
+    monkeypatch.setattr("writing_agent.runtime.subagent_manager._SUBAGENTS_FILE", path)
     return path
 
 
@@ -70,7 +70,7 @@ def test_researcher_cannot_mutate_documents() -> None:
 
 
 def test_disabled_subagent_not_registered() -> None:
-    from fake_model import FakeModel
+    from writing_agent.runtime.fake_model import FakeModel
 
     tools = create_subagent_tools(model=FakeModel(), enabled_names={"review"})
     names = {t.tool_name for t in tools}
@@ -78,7 +78,7 @@ def test_disabled_subagent_not_registered() -> None:
 
 
 def test_subagent_manager_toggle(subagents_yaml: Path) -> None:
-    from subagent_manager import (
+    from writing_agent.runtime.subagent_manager import (
         get_enabled_subagent_names,
         list_subagents_for_settings,
         set_subagent_enabled,
@@ -92,7 +92,7 @@ def test_subagent_manager_toggle(subagents_yaml: Path) -> None:
 
 
 def test_unknown_subagent_toggle_raises(subagents_yaml: Path) -> None:
-    from subagent_manager import set_subagent_enabled
+    from writing_agent.runtime.subagent_manager import set_subagent_enabled
 
     with pytest.raises(ValueError, match="Unknown subagent"):
         set_subagent_enabled("does-not-exist", True)
@@ -102,7 +102,7 @@ def test_unknown_subagent_toggle_raises(subagents_yaml: Path) -> None:
 
 
 def test_reference_check_offline(tmp_path: Path) -> None:
-    from reference_check import check_document
+    from writing_agent.tools.reference_check import check_document
 
     refs = tmp_path / "references"
     refs.mkdir()

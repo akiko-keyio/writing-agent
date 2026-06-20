@@ -4,7 +4,7 @@ import {
   composeMessageTextWithAttachments,
   makeSelectionAttachment,
   type ChatAttachment,
-} from "@/lib/chat-attachments"
+} from "@/lib/chat/attachments"
 
 describe("composeMessageTextWithAttachments", () => {
   const selection = makeSelectionAttachment({

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react"
 
-import { getAgentClient } from "@/lib/agent-client"
+import { getAgentClient } from "@/lib/agent/client"
 import type {
   AgentOutboundMessage,
   MemoryData,
@@ -8,7 +8,7 @@ import type {
   PluginsData,
   SettingsConfigData,
   ToolEntryData,
-} from "@/lib/agent-protocol"
+} from "@/lib/agent/protocol"
 
 export function useSettings() {
   const [config, setConfig] = useState<SettingsConfigData | null>(null)

@@ -6,8 +6,8 @@ import { Slot } from "@radix-ui/react-slot";
 
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { gap, p, stack } from "@/lib/spacing";
-import { cn } from "@/lib/utils";
+import { gap, p, stack } from "@/lib/shell/spacing";
+import { cn } from "@/lib/shared/utils";
 import { Button } from "@/components/ui/button";
 
 const suggestionVariants = cva(

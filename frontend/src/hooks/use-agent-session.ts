@@ -4,7 +4,7 @@ import {
   getAgentClient,
   resetAgentClient,
   type AgentClient,
-} from "@/lib/agent-client"
+} from "@/lib/agent/client"
 import type {
   AgentConnectionState,
   AgentOutboundMessage,
@@ -17,7 +17,7 @@ import type {
   EditGroup,
   SessionSummary,
   SessionUiMessage,
-} from "@/lib/agent-protocol"
+} from "@/lib/agent/protocol"
 import {
   applyReasoningDelta,
   applyToolUpdateToProcess,
@@ -26,7 +26,7 @@ import {
   finalizeRunningTools,
   startImplicitReasoningAfterTool,
   type AgentProcessItem,
-} from "@/lib/agent-process-timeline"
+} from "@/lib/agent/process-timeline"
 
 export type AgentToolCall = {
   id: string

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import type { ChatTab } from "@/lib/chat-tab"
+import type { ChatTab } from "@/lib/chat/tab"
 import {
   loadChatTabIds,
   prependChatTabId,
   saveChatTabIds,
   sessionTitleFromMessages,
-} from "@/lib/chat-sessions"
+} from "@/lib/chat/sessions"
 import type { AgentChatMessage } from "@/hooks/use-agent-session"
-import type { SessionSummary } from "@/lib/agent-protocol"
+import type { SessionSummary } from "@/lib/agent/protocol"
 
 function tabsFromBackend(
   tabIds: string[],

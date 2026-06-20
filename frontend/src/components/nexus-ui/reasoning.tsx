@@ -5,7 +5,7 @@ import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import * as React from "react"
 import { ChromeInlineScroll } from "@/components/chrome-scroll-area"
 import { ChatReasoningMarkdown } from "@/components/chat-streamdown"
-import { chatReasoningScrollMaxHeight } from "@/lib/chat-streamdown"
+import { chatReasoningScrollMaxHeight } from "@/lib/chat/streamdown"
 
 import {
   Collapsible,
@@ -17,10 +17,10 @@ import { useOnChange } from "@/hooks/use-on-change"
 import {
   chatProcessLineClass,
   chatReasoningBodyShellClass,
-} from "@/lib/chat-typography"
-import { useReasoningPhaseLabel } from "@/lib/reasoning-phase"
-import { gap } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+} from "@/lib/chat/typography"
+import { useReasoningPhaseLabel } from "@/lib/shared/reasoning-phase"
+import { gap } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 type ReasoningContextValue = {
   isStreaming: boolean

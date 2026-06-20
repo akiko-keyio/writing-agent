@@ -64,7 +64,7 @@ import {
 
   type AgentReasoningPhase,
 
-} from "@/lib/agent-process-timeline"
+} from "@/lib/agent/process-timeline"
 
 import {
 
@@ -74,7 +74,7 @@ import {
 
   type ChatToolDisplayMode,
 
-} from "@/lib/chat-display-prefs"
+} from "@/lib/chat/display-prefs"
 
 import {
 
@@ -85,16 +85,16 @@ import {
   chatBoxLaneClass,
   chatProseLaneClass,
 
-} from "@/lib/chat-typography"
+} from "@/lib/chat/typography"
 
-import { formatAgentToolLabel } from "@/lib/agent-tool-labels"
-import { formatToolPayloadForDisplay } from "@/lib/tool-payload-display"
+import { formatAgentToolLabel } from "@/lib/agent/tool-labels"
+import { formatToolPayloadForDisplay } from "@/lib/agent/tool-payload-display"
 
-import { formatReasoningPhaseLabel } from "@/lib/reasoning-phase"
+import { formatReasoningPhaseLabel } from "@/lib/shared/reasoning-phase"
 
-import { p, stack } from "@/lib/spacing"
+import { p, stack } from "@/lib/shell/spacing"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/shared/utils"
 
 
 

@@ -77,11 +77,27 @@ pnpm run build
 ## 架构
 
 ```
-frontend          React IDE + Review Queue + Settings（memory / principles）
-       │ WebSocket
-handlers          session / chat / review / memory / settings
-domain            EditGroupService / MemoryStore / SessionStore
-agent             Strands Agent + review / researcher 子代理
-tools             read_document / check_references / propose_edits / revise_edit / remember_context / propose_principle
-filesystem        项目文件 + .writing-agent/ 状态
+frontend/src/
+  components/     UI（ui/ primitives, nexus-ui/, feature components）
+  hooks/          React hooks
+  lib/
+    agent/        WebSocket protocol + client
+    chat/         sessions, attachments, streamdown
+    workspace/    project roots, folder actions, API client
+    shell/        layout tokens, spacing, workbench grid
+    document/     tabs, TOC, edit diff helpers
+    shared/       icons, utils, path helpers
+
+agent/writing_agent/
+  server/         WebSocket handler + protocol
+  domain/         EditGroup, memory, sessions
+  runtime/        Strands runner, models, subagents
+  tools/          read/propose/check writing tools
+
+examples/         default workspace (demo manuscript + references/)
+docs/             principle, demo handoff, agent execution notes
+```
+
+```
+Agent 提议 → 后端验证 → 用户审阅 → Apply 更新文档 → Save 写入磁盘
 ```

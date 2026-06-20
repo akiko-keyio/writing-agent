@@ -8,16 +8,16 @@ from pathlib import Path
 
 import pytest
 
-from protocol import SessionState
-from session_store import SessionStore
-from storage import CorruptStateError, atomic_write_json, read_json, state_root
+from writing_agent.server.protocol import SessionState
+from writing_agent.domain.session_store import SessionStore
+from writing_agent.domain.storage import CorruptStateError, atomic_write_json, read_json, state_root
 from strands.types.content import Message
-from strands_runner import WritingAgentRunner
+from writing_agent.runtime.strands_runner import WritingAgentRunner
 
 
 @pytest.fixture(autouse=True)
 def _models(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("model_manager._MODELS_FILE", tmp_path / "models.yaml")
+    monkeypatch.setattr("writing_agent.runtime.model_manager._MODELS_FILE", tmp_path / "models.yaml")
 
 
 def _runner() -> WritingAgentRunner:
@@ -104,7 +104,7 @@ def test_corrupt_session_file_is_recoverable() -> None:
     )
     path.write_text("{not valid json", encoding="utf-8")
 
-    # load() returns None, list_all() skips it â€” no crash.
+    # load() returns None, list_all() skips it â€?no crash.
     assert store.load(sid) is None
     assert store.list_all() == []
 
@@ -129,7 +129,7 @@ def test_atomic_write_is_complete_under_repeated_saves(tmp_path: Path) -> None:
 
 
 def test_path_traversal_rejected() -> None:
-    from project_root import normalize_workspace_path, resolve_workspace_path
+    from writing_agent.workspace.project_root import normalize_workspace_path, resolve_workspace_path
 
     with pytest.raises(ValueError):
         normalize_workspace_path("../etc/passwd")

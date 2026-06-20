@@ -1,9 +1,9 @@
 import { Fragment } from "react"
-import type { TextDiffPart } from "@/lib/edit-text-diff"
-import { computeEditTextDiff } from "@/lib/edit-text-diff"
-import type { EditKind } from "@/lib/agent-protocol"
-import { chatMarkdownBodyClass } from "@/lib/chat-typography"
-import { cn } from "@/lib/utils"
+import type { TextDiffPart } from "@/lib/document/edit-text-diff"
+import { computeEditTextDiff } from "@/lib/document/edit-text-diff"
+import type { EditKind } from "@/lib/agent/protocol"
+import { chatMarkdownBodyClass } from "@/lib/chat/typography"
+import { cn } from "@/lib/shared/utils"
 
 /** Review Queue inline diff — markdown body font at 14px (`text-sm`). */
 export const reviewDiffBodyClass = cn(

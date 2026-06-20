@@ -17,10 +17,10 @@ import os
 
 os.environ.setdefault("WRITING_AGENT_STATE_DIR", tempfile.mkdtemp(prefix="live-smoke-"))
 
-from connection import Connection
-from handler import handle_message_events
-from model_factory import has_active_model_config
-from session_store import SessionStore
+from writing_agent.server.connection import Connection
+from writing_agent.server.handler import handle_message_events
+from writing_agent.runtime.model_factory import has_active_model_config
+from writing_agent.domain.session_store import SessionStore
 
 DOC = "# Draft\n\nWe utilize the API to fetch data. The team will utilize caching later.\n"
 

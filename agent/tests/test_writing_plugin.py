@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
-from stream_events import StreamAccum, queue_event_to_ws
-from writing_plugin import WritingPlugin, _tool_end_payload
+from writing_agent.server.stream_events import StreamAccum, queue_event_to_ws
+from writing_agent.runtime.writing_plugin import WritingPlugin, _tool_end_payload
 
 
 def test_writing_plugin_registers_hooks():

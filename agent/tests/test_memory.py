@@ -7,11 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from connection import Connection
-from edit_group_service import EditGroupService
-from edit_group_store import EditGroupStore
-from handler import handle_message_events
-from memory_store import (
+from writing_agent.server.connection import Connection
+from writing_agent.domain.edit_group_service import EditGroupService
+from writing_agent.domain.edit_group_store import EditGroupStore
+from writing_agent.server.handler import handle_message_events
+from writing_agent.domain.memory_store import (
     KIND_EXAMPLE,
     KIND_KNOWLEDGE,
     KIND_PRINCIPLE,
@@ -21,14 +21,14 @@ from memory_store import (
     learn_from_dismiss,
     learn_from_replace,
 )
-from session_store import SessionStore
+from writing_agent.domain.session_store import SessionStore
 
 DOC = "# Doc\n\nWe utilize the API and we utilize caching elsewhere.\n"
 
 
 @pytest.fixture(autouse=True)
 def _models(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("model_manager._MODELS_FILE", tmp_path / "models.yaml")
+    monkeypatch.setattr("writing_agent.runtime.model_manager._MODELS_FILE", tmp_path / "models.yaml")
 
 
 async def _collect(conn: Connection, raw: dict) -> list[dict]:
@@ -340,7 +340,7 @@ def test_memory_read_and_update_routes(tmp_path: Path) -> None:
 
 
 def test_candidate_principle_not_in_prompt() -> None:
-    from memory_store import propose_candidate_principle
+    from writing_agent.domain.memory_store import propose_candidate_principle
 
     store = MemoryStore()
     propose_candidate_principle(
@@ -354,7 +354,7 @@ def test_candidate_principle_not_in_prompt() -> None:
 
 
 def test_accept_candidate_promotes_to_prompt() -> None:
-    from memory_store import accept_candidate_principle, propose_candidate_principle
+    from writing_agent.domain.memory_store import accept_candidate_principle, propose_candidate_principle
 
     store = MemoryStore()
     entry = propose_candidate_principle(
@@ -368,7 +368,7 @@ def test_accept_candidate_promotes_to_prompt() -> None:
 
 
 def test_memory_accept_reject_candidate_routes(tmp_path: Path) -> None:
-    from memory_store import CANDIDATE_STATUS, propose_candidate_principle
+    from writing_agent.domain.memory_store import CANDIDATE_STATUS, propose_candidate_principle
 
     conn = _conn(tmp_path)
     entry = propose_candidate_principle(

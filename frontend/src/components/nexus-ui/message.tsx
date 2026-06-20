@@ -6,11 +6,11 @@ import { ChatStreamdown } from "@/components/chat-streamdown"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Kbd } from "@/components/ui/kbd"
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"
-import { chatMarkdownBodyClass } from "@/lib/chat-typography"
-import { gap } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import { chatMarkdownBodyClass } from "@/lib/chat/typography"
+import { gap } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
-export { chatStreamdownPlugins } from "@/lib/chat-streamdown"
+export { chatStreamdownPlugins } from "@/lib/chat/streamdown"
 
 type MessageFrom = "user" | "assistant"
 

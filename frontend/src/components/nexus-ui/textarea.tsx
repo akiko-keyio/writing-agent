@@ -2,8 +2,8 @@
 
 import * as React from "react"
 
-import { p } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import { p } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 /**
  * Nexus registry textarea (shadcn). Used only inside {@link PromptInputTextarea}.

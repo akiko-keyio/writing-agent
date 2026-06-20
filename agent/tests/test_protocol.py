@@ -1,4 +1,4 @@
-from protocol import SessionState, apply_replacements
+from writing_agent.server.protocol import SessionState, apply_replacements
 
 
 def test_apply_unique_replacement():

@@ -11,7 +11,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { IconSvgElement } from "@hugeicons/react";
 import type React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 import { buttonVariants } from "@/components/ui/button";
 
 const TOAST_ICONS: Record<

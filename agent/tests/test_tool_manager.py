@@ -5,19 +5,19 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tool_manager import (
+from writing_agent.runtime.tool_manager import (
     get_enabled_tool_ids,
     list_tools_for_settings,
     load_tool_prefs,
     set_tool_enabled,
 )
-from writing_tools import get_enabled_writing_tools
+from writing_agent.tools.writing_tools import get_enabled_writing_tools
 
 
 @pytest.fixture
 def tools_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     path = tmp_path / "tools.yaml"
-    monkeypatch.setattr("tool_manager._TOOLS_FILE", path)
+    monkeypatch.setattr("writing_agent.runtime.tool_manager._TOOLS_FILE", path)
     return path
 
 

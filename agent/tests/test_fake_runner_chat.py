@@ -8,12 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from connection import Connection
+from writing_agent.server.connection import Connection
 from fakes import FakeTurn, fake_model_factory
-from handler import handle_message_events
-from memory_store import KIND_PRINCIPLE, MemoryEntry
-from session_store import SessionStore
-from strands_runner import WritingAgentRunner
+from writing_agent.server.handler import handle_message_events
+from writing_agent.domain.memory_store import KIND_PRINCIPLE, MemoryEntry
+from writing_agent.domain.session_store import SessionStore
+from writing_agent.runtime.strands_runner import WritingAgentRunner
 
 
 async def _collect(conn: Connection, raw: dict) -> list[dict]:
@@ -25,7 +25,7 @@ async def _collect(conn: Connection, raw: dict) -> list[dict]:
 
 @pytest.fixture(autouse=True)
 def _isolated_models(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("model_manager._MODELS_FILE", tmp_path / "models.yaml")
+    monkeypatch.setattr("writing_agent.runtime.model_manager._MODELS_FILE", tmp_path / "models.yaml")
 
 
 def _fake_conn(turns: list[FakeTurn]) -> tuple[Connection, SessionStore]:

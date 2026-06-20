@@ -14,8 +14,8 @@ import {
   MenuPopup,
   MenuSeparator,
 } from "@/components/ui/menu"
-import { HugeiconsIcon } from "@/lib/icons"
-import { pathDirname } from "@/lib/path"
+import { HugeiconsIcon } from "@/lib/shared/icons"
+import { pathDirname } from "@/lib/shared/path"
 
 export type ExplorerRowMenuTarget = {
   path: string

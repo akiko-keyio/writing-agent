@@ -16,14 +16,14 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Separator } from "@/components/ui/separator"
-import { cardBarPad, gap, p, rowPad, stack } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import { cardBarPad, gap, p, rowPad, stack } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 import {
   isLongEdit,
   truncateText,
   type DemoEdit,
   type EditAppliedState,
-} from "@/lib/writing-demo"
+} from "@/lib/shared/writing-demo"
 
 export interface EditGroupCardProps {
   issue: string

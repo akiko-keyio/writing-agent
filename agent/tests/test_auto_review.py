@@ -7,15 +7,15 @@ from pathlib import Path
 
 import pytest
 
-from connection import Connection
-from edit_group_service import EditGroupService
-from edit_group_store import EditGroupStore
-from fake_model import FakeModel, FakeTurn
-from handler import handle_message_events
-from memory_store import MemoryStore
-from protocol import SessionState
-from session_store import SessionStore
-from strands_runner import (
+from writing_agent.server.connection import Connection
+from writing_agent.domain.edit_group_service import EditGroupService
+from writing_agent.domain.edit_group_store import EditGroupStore
+from writing_agent.runtime.fake_model import FakeModel, FakeTurn
+from writing_agent.server.handler import handle_message_events
+from writing_agent.domain.memory_store import MemoryStore
+from writing_agent.server.protocol import SessionState
+from writing_agent.domain.session_store import SessionStore
+from writing_agent.runtime.strands_runner import (
     AUTO_REVIEW_STATE_KEY,
     WritingAgentRunner,
     _auto_review_instructions,
@@ -26,7 +26,7 @@ from strands_runner import (
 
 @pytest.fixture(autouse=True)
 def _models(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("model_manager._MODELS_FILE", tmp_path / "models.yaml")
+    monkeypatch.setattr("writing_agent.runtime.model_manager._MODELS_FILE", tmp_path / "models.yaml")
 
 
 def test_auto_review_instructions_on_off() -> None:

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
 
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs"
-import type { DocumentTocEntry } from "@/lib/document-toc"
-import { shell, shellNavIndent } from "@/lib/shell-chrome"
-import { cn } from "@/lib/utils"
+import type { DocumentTocEntry } from "@/lib/document/toc"
+import { shell, shellNavIndent } from "@/lib/shell/chrome"
+import { cn } from "@/lib/shared/utils"
 
 /**
  * 文档大纲：p-tabs-4 竖向 underline；点击跳转 + 层级缩进/字重。

@@ -15,20 +15,20 @@ import { useChatSessions } from "@/hooks/use-chat-sessions"
 import { useSettings } from "@/hooks/use-settings"
 import { useWorkspace } from "@/hooks/use-workspace"
 import { usePanelResize } from "@/hooks/use-panel-resize"
-import type { DocumentPatchMessage, DocumentBufferMessage, DocumentSavedMessage } from "@/lib/agent-protocol"
+import type { DocumentPatchMessage, DocumentBufferMessage, DocumentSavedMessage } from "@/lib/agent/protocol"
 import type { EditorSelection } from "@/components/document-editor"
 import {
   makeEditReviewAttachment,
   makeSelectionAttachment,
   type ChatAttachment,
-} from "@/lib/chat-attachments"
-import { invalidateFileReadCache } from "@/lib/file-read-cache"
-import { SETTINGS_PATH } from "@/lib/document-tabs"
-import { pathBasename, pathDirname, pathJoin } from "@/lib/path"
-import { suggestNewFilePath } from "@/lib/suggest-new-file-path"
-import { suggestNewFolderPath } from "@/lib/suggest-new-folder-path"
+} from "@/lib/chat/attachments"
+import { invalidateFileReadCache } from "@/lib/workspace/file-read-cache"
+import { SETTINGS_PATH } from "@/lib/document/tabs"
+import { pathBasename, pathDirname, pathJoin } from "@/lib/shared/path"
+import { suggestNewFilePath } from "@/lib/workspace/suggest-new-file-path"
+import { suggestNewFolderPath } from "@/lib/workspace/suggest-new-folder-path"
 import { toastManager } from "@/components/ui/toast"
-import { shell } from "@/lib/shell-chrome"
+import { shell } from "@/lib/shell/chrome"
 import { useViewportWidth } from "@/hooks/use-media-query"
 import {
   CHAT_PANEL_MIN_PX,
@@ -39,8 +39,8 @@ import {
   resolveWorkbenchLayout,
   type WorkbenchFullscreenPane,
   workbenchGridTemplateColumns,
-} from "@/lib/workbench-grid"
-import { cn } from "@/lib/utils"
+} from "@/lib/shell/workbench-grid"
+import { cn } from "@/lib/shared/utils"
 
 const EXPLORER_PANEL_WIDTH_MIN = EXPLORER_PANEL_MIN_PX
 const EXPLORER_PANEL_WIDTH_MAX = 420

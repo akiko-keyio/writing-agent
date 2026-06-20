@@ -17,16 +17,16 @@ import {
 import {
   EXPLORER_TREE_ROW_HEIGHT_PX,
   explorerTreeRowStridePx,
-} from "@/lib/explorer-tree-row-density"
+} from "@/lib/shared/explorer-tree-row-density"
 import {
   collectAncestorDirectoryPaths,
   collectDirectoryPathsFromFilePaths,
   collectWorkspacePaths,
 } from "@/components/explorer-variants/shared/workspace-tree-adapters"
-import type { WorkspaceFileNode } from "@/lib/workspace-api"
-import { pathBasename, pathJoin } from "@/lib/path"
-import { shell } from "@/lib/shell-chrome"
-import { cn } from "@/lib/utils"
+import type { WorkspaceFileNode } from "@/lib/workspace/api"
+import { pathBasename, pathJoin } from "@/lib/shared/path"
+import { shell } from "@/lib/shell/chrome"
+import { cn } from "@/lib/shared/utils"
 
 const PIERRE_TREE_ROW_DENSITY = "compact" as const
 const PIERRE_TREE_ROW_HEIGHT_PX =

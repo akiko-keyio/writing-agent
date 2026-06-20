@@ -5,7 +5,7 @@ import { ArrowLeft01Icon, ArrowRight01Icon, MoreHorizontalIcon } from "@hugeicon
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import type * as React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 import { type Button, buttonVariants } from "@/components/ui/button";
 
 export function Pagination({

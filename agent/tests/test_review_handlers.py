@@ -7,17 +7,17 @@ from pathlib import Path
 
 import pytest
 
-from connection import Connection
-from handler import handle_message_events
-from memory_store import KIND_EXAMPLE
-from session_store import SessionStore
+from writing_agent.server.connection import Connection
+from writing_agent.server.handler import handle_message_events
+from writing_agent.domain.memory_store import KIND_EXAMPLE
+from writing_agent.domain.session_store import SessionStore
 
 DOC = "# Title\n\nWe utilize the API.\n\nFinal line.\n"
 
 
 @pytest.fixture(autouse=True)
 def _models(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("model_manager._MODELS_FILE", tmp_path / "models.yaml")
+    monkeypatch.setattr("writing_agent.runtime.model_manager._MODELS_FILE", tmp_path / "models.yaml")
 
 
 async def _collect(conn: Connection, raw: dict) -> list[dict]:
@@ -28,8 +28,8 @@ def _conn(tmp_path: Path) -> Connection:
     store = SessionStore()
     conn = Connection.create(store)
     # Point the edit service at the test workspace.
-    from edit_group_service import EditGroupService
-    from edit_group_store import EditGroupStore
+    from writing_agent.domain.edit_group_service import EditGroupService
+    from writing_agent.domain.edit_group_store import EditGroupStore
 
     conn.project_root = tmp_path
     conn.edit_service = EditGroupService(project_root=tmp_path, store=EditGroupStore())

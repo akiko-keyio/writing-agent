@@ -14,8 +14,8 @@ import {
 import {
   groupChatSessionsByRecency,
   type ChatSessionListItem,
-} from "@/lib/chat-session-groups"
-import { shell } from "@/lib/shell-chrome"
+} from "@/lib/chat/session-groups"
+import { shell } from "@/lib/shell/chrome"
 
 const chatSessionRadioItemClass = shell.menuRadioItem
 

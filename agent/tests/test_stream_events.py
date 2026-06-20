@@ -1,4 +1,4 @@
-from stream_events import StreamAccum, queue_event_to_ws, strands_callback_to_ws
+from writing_agent.server.stream_events import StreamAccum, queue_event_to_ws, strands_callback_to_ws
 
 
 def test_text_delta_maps_to_message_delta():

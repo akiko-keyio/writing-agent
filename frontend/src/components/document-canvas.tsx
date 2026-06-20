@@ -1,8 +1,8 @@
 import { useRef } from "react"
 
 import { EditAnchor } from "@/components/edit-anchor"
-import { cn } from "@/lib/utils"
-import { DEMO_EDITS, type EditDefinition } from "@/lib/writing-demo"
+import { cn } from "@/lib/shared/utils"
+import { DEMO_EDITS, type EditDefinition } from "@/lib/shared/writing-demo"
 
 export interface DocumentCanvasProps {
   editStates: Record<string, { applied: boolean }>

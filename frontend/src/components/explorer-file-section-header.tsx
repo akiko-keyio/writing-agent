@@ -1,9 +1,9 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { FileAddIcon, FolderAddIcon } from "@hugeicons/core-free-icons";
 import { ShellTooltipIconButton } from "@/components/chrome-toolbar-button"
-import { explorerFileSectionHeaderRowClass } from "@/lib/explorer-tree-row-density"
-import { shell, shellExplorerTreeRowDepthStyle } from "@/lib/shell-chrome"
-import { cn } from "@/lib/utils"
+import { explorerFileSectionHeaderRowClass } from "@/lib/shared/explorer-tree-row-density"
+import { shell, shellExplorerTreeRowDepthStyle } from "@/lib/shell/chrome"
+import { cn } from "@/lib/shared/utils"
 
 export function ExplorerFolderCreateActions({
   parentPath,

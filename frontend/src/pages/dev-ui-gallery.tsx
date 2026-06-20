@@ -17,10 +17,10 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar"
-import { REPO_PROJECT, type ProjectEntry } from "@/lib/project-catalog"
-import { shell } from "@/lib/shell-chrome"
-import { gap, p, row, stack } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import { REPO_PROJECT, type ProjectEntry } from "@/lib/workspace/project-catalog"
+import { shell } from "@/lib/shell/chrome"
+import { gap, p, row, stack } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 const MOCK_PROJECTS: ProjectEntry[] = [
   REPO_PROJECT,

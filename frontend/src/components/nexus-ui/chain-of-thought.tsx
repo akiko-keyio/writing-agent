@@ -11,10 +11,10 @@ import {
 import { ChromeInlineScroll } from "@/components/chrome-scroll-area";
 import { TextShimmer } from "@/components/nexus-ui/text-shimmer";
 import { useOnChange } from "@/hooks/use-on-change";
-import { chatReasoningScrollMaxHeight } from "@/lib/chat-streamdown";
-import { chatProcessStepTitleClass } from "@/lib/chat-typography";
-import { gap, p, stack } from "@/lib/spacing";
-import { cn } from "@/lib/utils";
+import { chatReasoningScrollMaxHeight } from "@/lib/chat/streamdown";
+import { chatProcessStepTitleClass } from "@/lib/chat/typography";
+import { gap, p, stack } from "@/lib/shell/spacing";
+import { cn } from "@/lib/shared/utils";
 
 const processStepTitleTextClass =
   "truncate text-left text-ellipsis whitespace-nowrap";

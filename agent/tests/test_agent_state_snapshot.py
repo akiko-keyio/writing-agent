@@ -1,4 +1,4 @@
-from strands_runner import WritingAgentRunner
+from writing_agent.runtime.strands_runner import WritingAgentRunner
 
 
 def test_snapshot_and_restore_agent_state() -> None:

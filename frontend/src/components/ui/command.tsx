@@ -4,7 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon } from "@hugeicons/core-free-icons";
 import { Dialog as CommandDialogPrimitive } from "@base-ui/react/dialog";
 import type * as React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 import {
   Autocomplete,
   AutocompleteCollection,

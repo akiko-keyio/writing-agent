@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from project_root import resolve_project_root, resolve_repo_root
+from writing_agent.workspace.project_root import resolve_project_root, resolve_repo_root
 
 
 def test_default_project_root_is_examples(monkeypatch) -> None:

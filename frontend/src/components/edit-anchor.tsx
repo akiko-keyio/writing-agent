@@ -1,7 +1,7 @@
 import { forwardRef } from "react"
 
-import { cn } from "@/lib/utils"
-import type { EditDefinition } from "@/lib/writing-demo"
+import { cn } from "@/lib/shared/utils"
+import type { EditDefinition } from "@/lib/shared/writing-demo"
 
 export interface EditAnchorProps {
   edit: EditDefinition

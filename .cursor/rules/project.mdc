@@ -12,7 +12,7 @@ alwaysApply: true
 
 
 
-`docs/writing-agent-design.md` 描述了所有设计的基础
+`docs/principle.md` 描述了产品设计原则
 
 
 
@@ -28,7 +28,7 @@ UI 使用 [coss ui](https://coss.com/ui) 组件库，通过 shadcn CLI 从 `@cos
 - **安装后必做**：① 删掉误生成的 `frontend/components/` 副本；② 若 `ui/tooltip` 等被覆盖，从 git 恢复 coss 版；③ 只改 Nexus 文件里的 import（`@/components/ui/button` 等）、Tooltip 用 coss 的 `TooltipPopup`、图标统一为 `@hugeicons/react` + `@hugeicons/core-free-icons`（`<HugeiconsIcon icon={…Icon} />`）。
 - **组装照官方**：`PromptInput` → `ScrollArea`（`max-h-40`）→ `Textarea` → `PromptInputActions`；外层**不要**再包 `border-t` 大框，只留 `PromptInput` 圆角卡片 + 必要 `px` 留白。
 - **分工**：coss = 壳层与通用控件；Nexus = Chat 消息/输入散件；会话状态用 `agent-client` / `use-agent-session`，**不要** `assistant-ui` runtime。
-- **Review**：coss 自研（`writing-agent-design.md` §5）。
+- **Review**：coss 自研（见 `docs/principle.md`）。
 
 ## COSS UI 约定（必须遵循）
 
@@ -36,7 +36,7 @@ UI 使用 [coss ui](https://coss.com/ui) 组件库，通过 shadcn CLI 从 `@cos
 - **组件 API 完整性**：`ui/*` 下的 coss 组件只能使用上游文档（`.agents/skills/coss/references/primitives/<name>.md`）中明确列出的 variant / size / prop。禁止自行添加、扩展、删除任何 variant 或 size——即使看起来"合理推测"也不行。如需新值，须在 PR 中注明偏离上游的原因。
 - **图标**：全项目统一 Hugeicons（`components.json` → `iconLibrary: "hugeicons"`）。渲染入口 `@/lib/icons` 的 `HugeiconsIcon`；图标数据从 `@hugeicons/core-free-icons` 导入。用法：`<HugeiconsIcon icon={XxxIcon} aria-hidden="true" />`；动态图标用 `IconSvgElement`。禁止 `lucide-react` 及其它图标库。装饰性图标加 `aria-hidden="true"`；仅图标按钮用 `aria-label`。
 - **样式**：用语义 token（`bg-background`、`text-muted-foreground` 等），禁止硬编码 palette；布局用 `flex flex-col gap-*`，不用 `space-y-*` / `space-x-*`；优先 `in-[[data-slot=…]]` 而非 `group`。
-- **间距**：应用层（壳层 / Chat / Nexus 适配 / 业务组件）统一从 `@/lib/spacing` 取 `gap` / `p` / `stack` / `row`；禁止裸写 `gap-*` / `p-*` / `space-y-*`。`ui/*` primitive 内置间距不改。
+- **间距**：应用层（壳层 / Chat / Nexus 适配 / 业务组件）统一从 `@/lib/shell/spacing` 取 `gap` / `p` / `stack` / `row`；禁止裸写 `gap-*` / `p-*` / `space-y-*`。`ui/*` primitive 内置间距不改。
 - **主题**：CSS 变量链见 `frontend/src/index.css`（`:root` 定义 `--font-sans` / `--font-heading` / `--font-mono`，`@theme inline` 映射）；保留 `--alpha()` token，勿改为 `color-mix` 替代 border。
 - **全局布局**：`body.relative` + 根容器 `isolate relative flex min-h-svh flex-col`；`ToastProvider` / `TooltipProvider` 包裹应用。
 - **CLI 后处理**：`npx shadcn add @coss/<name>` 若生成 lucide import，须改为 `@hugeicons/core-free-icons` + `@/lib/icons` 的 `HugeiconsIcon`；保留 `aria-hidden`。勿运行 `@coss/style` 覆盖已有主题，除非有意全量同步。

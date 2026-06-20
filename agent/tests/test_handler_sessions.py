@@ -5,10 +5,10 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from connection import Connection
-from handler import _apply_chat_context_buffers, handle_message_events
-from protocol import SessionState
-from session_store import SessionStore
+from writing_agent.server.connection import Connection
+from writing_agent.server.handler import _apply_chat_context_buffers, handle_message_events
+from writing_agent.server.protocol import SessionState
+from writing_agent.domain.session_store import SessionStore
 
 
 async def _collect(conn: Connection, raw: dict) -> list[dict]:

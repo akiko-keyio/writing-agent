@@ -31,10 +31,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from connection import Connection
-from handler import handle_message_events
-from project_root import normalize_workspace_path, resolve_project_root
-from session_store import SessionStore
+from writing_agent.server.connection import Connection
+from writing_agent.server.handler import handle_message_events
+from writing_agent.workspace.project_root import normalize_workspace_path, resolve_project_root
+from writing_agent.domain.session_store import SessionStore
 
 
 def _print_event(event: dict) -> None:
@@ -106,7 +106,7 @@ def _build_connection(*, fake: bool, doc_path: str | None = None) -> Connection:
     conn.current_session_id = store.create_empty()
 
     if fake:
-        from fake_model import FakeModel, FakeToolCall, FakeTurn
+        from writing_agent.runtime.fake_model import FakeModel, FakeToolCall, FakeTurn
 
         path = doc_path or "draft.md"
         conn.runner = conn.runner.__class__(

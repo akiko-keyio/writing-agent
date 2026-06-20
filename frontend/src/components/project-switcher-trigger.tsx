@@ -3,10 +3,10 @@ import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { ProjectSwitcherMenuContent } from "@/components/explorer-projects"
 import { Button } from "@/components/ui/button"
 import { Menu, MenuPopup, MenuTrigger } from "@/components/ui/menu"
-import { REPO_PROJECT, type ProjectEntry } from "@/lib/project-catalog"
-import { PROJECT_WORKSPACE_ICON } from "@/lib/project-chrome"
-import { shell } from "@/lib/shell-chrome"
-import { cn } from "@/lib/utils"
+import { REPO_PROJECT, type ProjectEntry } from "@/lib/workspace/project-catalog"
+import { PROJECT_WORKSPACE_ICON } from "@/lib/shell/project-chrome"
+import { shell } from "@/lib/shell/chrome"
+import { cn } from "@/lib/shared/utils"
 
 export function ProjectSwitcherTrigger({
   activeProject,

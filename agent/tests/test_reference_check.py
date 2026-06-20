@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from reference_check import (
+from writing_agent.tools.reference_check import (
     check_document,
     check_doi,
     check_local_reference,

@@ -7,7 +7,7 @@ import {
   MenuPopup,
   MenuTrigger,
 } from "@/components/ui/menu"
-import { shell } from "@/lib/shell-chrome"
+import { shell } from "@/lib/shell/chrome"
 
 export function ChatToolbarActions({
   agentModelLabel,

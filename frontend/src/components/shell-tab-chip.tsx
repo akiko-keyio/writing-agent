@@ -11,9 +11,9 @@ import {
 import { MiddleTruncateLabel } from "@/components/middle-truncate-label"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"
-import { SETTINGS_PATH } from "@/lib/document-tabs"
-import { shell } from "@/lib/shell-chrome"
-import { cn } from "@/lib/utils"
+import { SETTINGS_PATH } from "@/lib/document/tabs"
+import { shell } from "@/lib/shell/chrome"
+import { cn } from "@/lib/shared/utils"
 import type { ReactNode } from "react"
 
 function documentTabIcon(path: string): ReactNode {

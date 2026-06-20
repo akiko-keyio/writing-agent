@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from protocol import SessionState
-from writing_tools import check_references
+from writing_agent.server.protocol import SessionState
+from writing_agent.tools.writing_tools import check_references
 
 
 def _tool_context(tmp_path: Path, queue: list, *, session: SessionState | None = None) -> dict:

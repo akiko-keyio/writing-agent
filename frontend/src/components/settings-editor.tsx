@@ -52,11 +52,11 @@ import {
 } from "@/components/ui/sidebar"
 import { MenuTwoLineEntry } from "@/components/menu-two-line-entry"
 import { modelDisplayName, modelEndpointLabel } from "@/components/model-switcher-trigger"
-import { HugeiconsIcon } from "@/lib/icons"
-import { contentReadingColumnClass } from "@/lib/content-layout"
-import { shell } from "@/lib/shell-chrome"
-import { p, row, stack } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import { HugeiconsIcon } from "@/lib/shared/icons"
+import { contentReadingColumnClass } from "@/lib/shell/content-layout"
+import { shell } from "@/lib/shell/chrome"
+import { p, row, stack } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 import type {
   MemoryData,
@@ -66,8 +66,8 @@ import type {
   PluginsData,
   SettingsConfigData,
   ToolEntryData,
-} from "@/lib/agent-protocol"
-import { formatAgentToolLabel } from "@/lib/agent-tool-labels"
+} from "@/lib/agent/protocol"
+import { formatAgentToolLabel } from "@/lib/agent/tool-labels"
 
 /** Settings page — reading column + 32px inset; panels on the same page use stack.xl. */
 const settingsPageClass = cn(contentReadingColumnClass, p[8].all, stack.xl)

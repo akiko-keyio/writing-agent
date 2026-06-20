@@ -7,15 +7,15 @@ import {
   MenuSeparator,
 } from "@/components/ui/menu"
 import { Separator } from "@/components/ui/separator"
-import { isFolderProject, REPO_PROJECT, type ProjectEntry } from "@/lib/project-catalog"
+import { isFolderProject, REPO_PROJECT, type ProjectEntry } from "@/lib/workspace/project-catalog"
 import {
   PROJECT_OPEN_NEW_ICON,
   projectEntryIcon,
   projectMenuIconClass,
-} from "@/lib/project-chrome"
-import { shell } from "@/lib/shell-chrome"
-import { cn } from "@/lib/utils"
-import { workspaceLocationLabel } from "@/lib/workspace-label"
+} from "@/lib/shell/project-chrome"
+import { shell } from "@/lib/shell/chrome"
+import { cn } from "@/lib/shared/utils"
+import { workspaceLocationLabel } from "@/lib/workspace/label"
 
 export function ProjectEntryIcon({
   entry,

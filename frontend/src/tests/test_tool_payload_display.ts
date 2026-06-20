@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   formatToolPayloadForDisplay,
   summarizeToolPayloadForDisplay,
-} from "@/lib/tool-payload-display"
+} from "@/lib/agent/tool-payload-display"
 
 describe("tool-payload-display", () => {
   it("truncates propose_edit_group edit bodies in input", () => {

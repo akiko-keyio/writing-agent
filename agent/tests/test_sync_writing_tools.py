@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from strands_runner import WritingAgentRunner
-from tool_manager import set_tool_enabled
+from writing_agent.runtime.strands_runner import WritingAgentRunner
+from writing_agent.runtime.tool_manager import set_tool_enabled
 
 
 @pytest.fixture
 def tools_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     path = tmp_path / "tools.yaml"
-    monkeypatch.setattr("tool_manager._TOOLS_FILE", path)
+    monkeypatch.setattr("writing_agent.runtime.tool_manager._TOOLS_FILE", path)
     return path
 
 

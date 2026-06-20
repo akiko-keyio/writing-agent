@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/shared/utils"
 
 /** 面板边缘拖拽条（VS Code 式列宽调整） */
 export function PanelResizeHandle({

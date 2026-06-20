@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-from project_root import resolve_workspace_path
-from protocol import SessionState
+from writing_agent.workspace.project_root import resolve_workspace_path
+from writing_agent.server.protocol import SessionState
 from strands.types.tools import ToolUse
-from writing_tools import read_document
+from writing_agent.tools.writing_tools import read_document
 
 
 def _tool_context(tmp_path: Path, queue: list) -> dict:

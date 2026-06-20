@@ -2,12 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from strands_file_read_adapter import read_path_content
-from strands_community_tools import (
+from writing_agent.adapters.strands_file_read_adapter import read_path_content
+from writing_agent.adapters.strands_community_tools import (
     resolve_skill_resource_path,
     skill_resource_roots,
 )
-from strands_runner import _ACADEMIC_SKILL_DIR
+from writing_agent.runtime.strands_runner import _ACADEMIC_SKILL_DIR
 
 
 def test_skill_resource_roots_include_academic_writing():

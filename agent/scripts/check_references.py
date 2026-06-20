@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from reference_check import check_document, urllib_fetcher
+from writing_agent.tools.reference_check import check_document, urllib_fetcher
 
 
 def main(argv: list[str] | None = None) -> int:

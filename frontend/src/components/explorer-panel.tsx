@@ -12,13 +12,13 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import type { ExplorerView } from "@/components/canvas-chrome"
-import type { DocumentTocEntry } from "@/lib/document-toc"
-import { HugeiconsIcon } from "@/lib/icons"
-import { REPO_PROJECT, type ProjectEntry } from "@/lib/project-catalog"
-import type { WorkspaceFileNode } from "@/lib/workspace-api"
-import { shell } from "@/lib/shell-chrome"
-import { p } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import type { DocumentTocEntry } from "@/lib/document/toc"
+import { HugeiconsIcon } from "@/lib/shared/icons"
+import { REPO_PROJECT, type ProjectEntry } from "@/lib/workspace/project-catalog"
+import type { WorkspaceFileNode } from "@/lib/workspace/api"
+import { shell } from "@/lib/shell/chrome"
+import { p } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 interface ExplorerPanelProps {
   explorerView: ExplorerView | null

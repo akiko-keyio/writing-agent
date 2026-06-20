@@ -18,15 +18,15 @@ import { Plugin, PluginKey } from "@tiptap/pm/state"
 import { Decoration, DecorationSet } from "@tiptap/pm/view"
 
 import { Button } from "@/components/ui/button"
-import { selectionToLineRange } from "@/lib/chat-context-label"
+import { selectionToLineRange } from "@/lib/chat/context-label"
 import {
   normalizeMarkdownHeadings,
   parseMarkdownHeadings,
   tocHeadingIdFromTitle,
   type DocumentTocEntry,
-} from "@/lib/document-toc"
-import { documentEditorShellClass } from "@/lib/content-layout"
-import { cn } from "@/lib/utils"
+} from "@/lib/document/toc"
+import { documentEditorShellClass } from "@/lib/shell/content-layout"
+import { cn } from "@/lib/shared/utils"
 
 export type EditorSelection = {
   from: number

@@ -25,7 +25,7 @@ os.environ.setdefault("WRITING_AGENT_STATE_DIR", _STATE)
 
 import websockets
 
-from main import connection_handler
+from writing_agent.server.main import connection_handler
 
 HOST = "localhost"
 PORT = 8799
@@ -77,7 +77,7 @@ async def _client() -> int:
         print("  saved -> document/saved ok")
 
     # Verify on disk.
-    from project_root import resolve_project_root
+    from writing_agent.workspace.project_root import resolve_project_root
 
     disk = resolve_project_root() / "_ws_smoke.md"
     content = disk.read_text(encoding="utf-8")

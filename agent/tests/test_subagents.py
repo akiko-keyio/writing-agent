@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from subagents import DEFAULT_AGENTS_DIR, load_subagent_specs, subagent_tool_name
+from writing_agent.runtime.subagents import DEFAULT_AGENTS_DIR, load_subagent_specs, subagent_tool_name
 
 
 def test_load_academic_writing_subagents():
@@ -24,7 +24,9 @@ def test_load_academic_writing_subagents():
 
 
 def test_subagent_markdown_paths_exist():
-    agents = Path(__file__).resolve().parent.parent / "plugins" / "academic-writing" / "agents"
+    from writing_agent.paths import PLUGINS_DIR
+
+    agents = PLUGINS_DIR / "academic-writing" / "agents"
     assert (agents / "review.md").is_file()
     assert (agents.parent / "SKILL.md").is_file()
 
@@ -61,7 +63,7 @@ def test_malformed_subagent_file_does_not_crash(tmp_path: Path):
 
 
 def test_scan_plugins_exposes_subagent_permissions():
-    from plugin_scanner import scan_plugins
+    from writing_agent.runtime.plugin_scanner import scan_plugins
 
     data = scan_plugins()
     for sub in data["subagents"]:

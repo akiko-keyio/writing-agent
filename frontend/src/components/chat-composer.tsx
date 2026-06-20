@@ -17,13 +17,13 @@ import {
   TooltipPopup,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import type { ModelEntryData } from "@/lib/agent-protocol"
-import type { ChatAttachment } from "@/lib/chat-attachments"
-import { attachmentMentionLabel } from "@/lib/chat-attachments"
-import { HugeiconsIcon } from "@/lib/icons"
-import { shell } from "@/lib/shell-chrome"
-import { gap, p, row } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import type { ModelEntryData } from "@/lib/agent/protocol"
+import type { ChatAttachment } from "@/lib/chat/attachments"
+import { attachmentMentionLabel } from "@/lib/chat/attachments"
+import { HugeiconsIcon } from "@/lib/shared/icons"
+import { shell } from "@/lib/shell/chrome"
+import { gap, p, row } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 /** 与用户气泡同一外壳：rounded-3xl + border-input + bg-card */
 const COMPOSER_SHELL_CLASS = cn(

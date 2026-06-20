@@ -4,7 +4,7 @@ import { ArrowRight01Icon, CircleIcon, Tick01Icon } from "@hugeicons/core-free-i
 import * as React from "react"
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/shared/utils"
 
 function ContextMenu({
   ...props

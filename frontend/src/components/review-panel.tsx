@@ -16,12 +16,12 @@ import {
   FrameTitle,
 } from "@/components/ui/frame"
 import { Separator } from "@/components/ui/separator"
-import type { Edit, EditGroup } from "@/lib/agent-protocol"
-import { reviewDockLaneClass } from "@/lib/content-layout"
-import { HugeiconsIcon } from "@/lib/icons"
-import { shell } from "@/lib/shell-chrome"
-import { gap, p, row } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import type { Edit, EditGroup } from "@/lib/agent/protocol"
+import { reviewDockLaneClass } from "@/lib/shell/content-layout"
+import { HugeiconsIcon } from "@/lib/shared/icons"
+import { shell } from "@/lib/shell/chrome"
+import { gap, p, row } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 /**
  * Review queue Frame — 定稿 v1

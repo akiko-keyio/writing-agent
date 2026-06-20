@@ -1,7 +1,7 @@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import type { ExplorerTreeRowDensity } from "@/lib/explorer-tree-row-density"
-import { row, p } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import type { ExplorerTreeRowDensity } from "@/lib/shared/explorer-tree-row-density"
+import { row, p } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 export function ExplorerTreeDensityToggle({
   value,

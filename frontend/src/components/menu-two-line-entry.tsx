@@ -1,5 +1,5 @@
-import { shell } from "@/lib/shell-chrome"
-import { cn } from "@/lib/utils"
+import { shell } from "@/lib/shell/chrome"
+import { cn } from "@/lib/shared/utils"
 
 /**
  * Two-line menu/list label without a leading icon.

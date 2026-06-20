@@ -3,8 +3,8 @@ import { HugeiconsIcon } from "@hugeicons/react"
 
 import { ShellIconButton } from "@/components/chrome-toolbar-button"
 import { toastManager } from "@/components/ui/toast"
-import { shell } from "@/lib/shell-chrome"
-import { cn } from "@/lib/utils"
+import { shell } from "@/lib/shell/chrome"
+import { cn } from "@/lib/shared/utils"
 
 type ChatMessageActionsProps = {
   markdown: string

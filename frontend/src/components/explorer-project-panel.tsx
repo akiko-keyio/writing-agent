@@ -1,9 +1,9 @@
 import { ProjectPanelList } from "@/components/explorer-projects"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import type { ProjectEntry } from "@/lib/project-catalog"
-import { shell } from "@/lib/shell-chrome"
-import { p } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import type { ProjectEntry } from "@/lib/workspace/project-catalog"
+import { shell } from "@/lib/shell/chrome"
+import { p } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 export function ExplorerProjectPanel({
   activeProject,

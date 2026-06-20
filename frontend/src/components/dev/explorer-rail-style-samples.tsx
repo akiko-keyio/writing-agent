@@ -7,8 +7,8 @@ import { EXPLORER_RAIL_ITEMS } from "@/components/explorer-sidebar-icon-rail"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { gap, p, row, stack } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import { gap, p, row, stack } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 const PREVIEW_CHROME = cn(
   "flex min-h-14 items-center rounded-lg border border-border bg-background",

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from strands_runner import WritingAgentRunner, _ACADEMIC_SKILL_DIR
+from writing_agent.runtime.strands_runner import WritingAgentRunner, _ACADEMIC_SKILL_DIR
 
 
 @pytest.fixture(autouse=True)
@@ -12,7 +12,7 @@ def _subagents_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         "subagents:\n  review:\n    enabled: true\n  researcher:\n    enabled: false\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr("subagent_manager._SUBAGENTS_FILE", path)
+    monkeypatch.setattr("writing_agent.runtime.subagent_manager._SUBAGENTS_FILE", path)
 
 
 def test_runner_loads_plugins_and_subagents():

@@ -1,6 +1,6 @@
-from protocol import SessionState
-from session_store import SessionStore
-from strands_runner import WritingAgentRunner
+from writing_agent.server.protocol import SessionState
+from writing_agent.domain.session_store import SessionStore
+from writing_agent.runtime.strands_runner import WritingAgentRunner
 
 
 def test_session_store_create_and_list():

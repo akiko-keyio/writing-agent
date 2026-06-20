@@ -5,7 +5,7 @@ import {
   applyToolUpdateToProcess,
   completeActiveReasoning,
   startImplicitReasoningAfterTool,
-} from "@/lib/agent-process-timeline"
+} from "@/lib/agent/process-timeline"
 
 describe("agent-process-timeline", () => {
   it("closes reasoning when a new tool appears", () => {

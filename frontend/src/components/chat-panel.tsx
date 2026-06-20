@@ -1,10 +1,10 @@
 import { ChatThread } from "@/components/chat-thread"
 import type { AgentChatMessage } from "@/hooks/use-agent-session"
 import type { EditorSelection } from "@/components/document-editor"
-import type { Edit, EditGroup, ModelEntryData } from "@/lib/agent-protocol"
-import type { ChatAttachment } from "@/lib/chat-attachments"
-import { shell } from "@/lib/shell-chrome"
-import { cn } from "@/lib/utils"
+import type { Edit, EditGroup, ModelEntryData } from "@/lib/agent/protocol"
+import type { ChatAttachment } from "@/lib/chat/attachments"
+import { shell } from "@/lib/shell/chrome"
+import { cn } from "@/lib/shared/utils"
 
 interface ChatPanelProps {
   chatOpen: boolean

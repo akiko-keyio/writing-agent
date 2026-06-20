@@ -13,9 +13,9 @@ import {
   MenuPopup,
   MenuTrigger,
 } from "@/components/ui/menu"
-import { shell } from "@/lib/shell-chrome"
-import { row } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import { shell } from "@/lib/shell/chrome"
+import { row } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 /**
  * Chrome锛欵xplorer / Chat 鏀剁撼閽€丒xplorer ToggleGroup銆侀仐鐣?ChatPanelHeader銆? */

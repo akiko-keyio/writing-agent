@@ -13,8 +13,8 @@ import {
   AlertTitle,
 } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { HugeiconsIcon } from "@/lib/icons"
-import { cn } from "@/lib/utils"
+import { HugeiconsIcon } from "@/lib/shared/icons"
+import { cn } from "@/lib/shared/utils"
 
 export type ChatAgentStatusProps = {
   connectionState: "connecting" | "open" | "closed"

@@ -2,8 +2,8 @@ import type { ReactNode } from "react"
 import type { IconSvgElement } from "@hugeicons/react"
 import { HugeiconsIcon } from "@hugeicons/react"
 
-import { shell } from "@/lib/shell-chrome"
-import { cn } from "@/lib/utils"
+import { shell } from "@/lib/shell/chrome"
+import { cn } from "@/lib/shared/utils"
 
 /**
  * PanelHeader — 面板头模板

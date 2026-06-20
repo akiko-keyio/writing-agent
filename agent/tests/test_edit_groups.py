@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from edit_group_service import EditGroupService
-from edit_group_store import EditGroupStore
-from edit_groups import (
+from writing_agent.domain.edit_group_service import EditGroupService
+from writing_agent.domain.edit_group_store import EditGroupStore
+from writing_agent.domain.edit_groups import (
     EDIT_APPLIED,
     EDIT_DISMISSED,
     EDIT_STALE,
@@ -21,7 +21,7 @@ from edit_groups import (
     build_group,
     refresh_group,
 )
-from protocol import SessionState
+from writing_agent.server.protocol import SessionState
 
 DOC = """# Title
 

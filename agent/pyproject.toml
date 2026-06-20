@@ -14,10 +14,10 @@ dependencies = [
 ]
 
 [project.scripts]
-writing-agent = "main:main"
+writing-agent = "writing_agent.server.main:main"
 
 [tool.pytest.ini_options]
-pythonpath = [".", "tests"]
+pythonpath = ["."]
 # Default gate is deterministic: live-LLM / live-server integration tests are
 # opt-in via `uv run pytest -m integration`.
 addopts = "-m 'not integration'"

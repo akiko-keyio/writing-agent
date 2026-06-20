@@ -1,5 +1,5 @@
-import { flattenWorkspaceTreeRoots } from "@/lib/workspace-client"
-import type { WorkspaceFileNode } from "@/lib/workspace-api"
+import { flattenWorkspaceTreeRoots } from "@/lib/workspace/client"
+import type { WorkspaceFileNode } from "@/lib/workspace/api"
 
 export function collectWorkspacePaths(tree: WorkspaceFileNode[]): string[] {
   const paths: string[] = []

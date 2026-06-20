@@ -8,14 +8,14 @@ import pytest
 import yaml
 
 from fakes import FakeModel, FakeTurn, fake_model_factory
-from model_factory import has_active_model_config, resolve_model_settings
-from strands_runner import WritingAgentRunner
+from writing_agent.runtime.model_factory import has_active_model_config, resolve_model_settings
+from writing_agent.runtime.strands_runner import WritingAgentRunner
 
 
 @pytest.fixture
 def models_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / "models.yaml"
-    monkeypatch.setattr("model_manager._MODELS_FILE", path)
+    monkeypatch.setattr("writing_agent.runtime.model_manager._MODELS_FILE", path)
     return path
 
 
@@ -57,8 +57,8 @@ def test_resolve_falls_back_to_env_when_yaml_empty(models_yaml: Path) -> None:
 
 
 def test_set_active_model_changes_factory_result(models_yaml: Path) -> None:
-    from model_manager import add_model, set_active_model
-    from model_manager import ModelEntry
+    from writing_agent.runtime.model_manager import add_model, set_active_model
+    from writing_agent.runtime.model_manager import ModelEntry
 
     add_model(
         ModelEntry(

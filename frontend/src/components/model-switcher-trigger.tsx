@@ -11,10 +11,10 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "@/components/ui/menu"
-import type { ModelEntryData } from "@/lib/agent-protocol"
-import { HugeiconsIcon } from "@/lib/icons"
-import { shell } from "@/lib/shell-chrome"
-import { cn } from "@/lib/utils"
+import type { ModelEntryData } from "@/lib/agent/protocol"
+import { HugeiconsIcon } from "@/lib/shared/icons"
+import { shell } from "@/lib/shell/chrome"
+import { cn } from "@/lib/shared/utils"
 
 /** Host label for model endpoint (Settings subtitle / composer hint). */
 export function modelEndpointLabel(apiBase: string | undefined): string {

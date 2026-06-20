@@ -5,7 +5,7 @@ import {
 } from "@/components/canvas-chrome"
 import { ExplorerTopBarRail } from "@/components/explorer-top-bar-rail"
 import { SettingsBackButton } from "@/components/settings-editor"
-import type { ProjectEntry } from "@/lib/project-catalog"
+import type { ProjectEntry } from "@/lib/workspace/project-catalog"
 
 import { ChatSwitcherTrigger } from "@/components/chat-switcher-trigger"
 
@@ -13,19 +13,19 @@ import { ChatToolbarActions } from "@/components/chat-toolbar-actions"
 
 import { ShellTabChip } from "@/components/shell-tab-chip"
 
-import type { ChatSessionListItem } from "@/lib/chat-session-groups"
+import type { ChatSessionListItem } from "@/lib/chat/session-groups"
 
-import type { DocumentTab } from "@/lib/document-tabs"
-import { SETTINGS_PATH } from "@/lib/document-tabs"
+import type { DocumentTab } from "@/lib/document/tabs"
+import { SETTINGS_PATH } from "@/lib/document/tabs"
 
-import { pathBasename } from "@/lib/path"
+import { pathBasename } from "@/lib/shared/path"
 
-import { shell } from "@/lib/shell-chrome"
+import { shell } from "@/lib/shell/chrome"
 
-import type { WorkbenchFullscreenPane } from "@/lib/workbench-grid"
-import { topBarGridTemplateColumns } from "@/lib/workbench-grid"
+import type { WorkbenchFullscreenPane } from "@/lib/shell/workbench-grid"
+import { topBarGridTemplateColumns } from "@/lib/shell/workbench-grid"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/shared/utils"
 
 export type WorkbenchTopBarProps = {
   explorerPanelWidth: number

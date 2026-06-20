@@ -103,7 +103,7 @@ class SuiteReport:
 
 
 def _build_turns(script: list[dict[str, Any]]):
-    from fake_model import FakeToolCall, FakeTurn
+    from writing_agent.runtime.fake_model import FakeToolCall, FakeTurn
 
     turns = []
     tid = 0
@@ -130,7 +130,7 @@ def _build_turns(script: list[dict[str, Any]]):
 
 def _run_evidence_case(case: dict[str, Any]) -> CaseResult:
     """Deterministic verifier classification against an evidence fixture."""
-    from verification import classify_claim
+    from writing_agent.tools.verification import classify_claim
 
     checks: list[Check] = []
     started = time.perf_counter()
@@ -151,15 +151,15 @@ def _run_evidence_case(case: dict[str, Any]) -> CaseResult:
 
 
 async def _run_case_async(case: dict[str, Any]) -> CaseResult:
-    from connection import Connection
-    from edit_group_service import EditGroupService
-    from edit_group_store import EditGroupStore
-    from fake_model import FakeModel
-    from handler import handle_message_events
-    from memory_store import MemoryEntry, MemoryStore
-    from protocol import SessionState
-    from session_store import SessionStore
-    from strands_runner import WritingAgentRunner
+    from writing_agent.server.connection import Connection
+    from writing_agent.domain.edit_group_service import EditGroupService
+    from writing_agent.domain.edit_group_store import EditGroupStore
+    from writing_agent.runtime.fake_model import FakeModel
+    from writing_agent.server.handler import handle_message_events
+    from writing_agent.domain.memory_store import MemoryEntry, MemoryStore
+    from writing_agent.server.protocol import SessionState
+    from writing_agent.domain.session_store import SessionStore
+    from writing_agent.runtime.strands_runner import WritingAgentRunner
 
     case_id = case["id"]
     checks: list[Check] = []
@@ -345,7 +345,7 @@ def _check_expectations(
             )
 
     if expect.get("memory_has_candidate"):
-        from memory_store import is_candidate_principle
+        from writing_agent.domain.memory_store import is_candidate_principle
 
         candidates = [
             e for e in conn.memory_store.list(kind="principle")
@@ -397,7 +397,7 @@ async def _apply_and_check_memory(
     conn: Any,
     expect: dict[str, Any],
 ) -> None:
-    from handler import handle_message_events
+    from writing_agent.server.handler import handle_message_events
 
     proposed = [e for e in events if e.get("type") == "group/propose"]
     if not proposed:

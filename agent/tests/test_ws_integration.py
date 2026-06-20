@@ -9,7 +9,7 @@ import os
 import pytest
 import websockets
 
-from config import config
+from writing_agent.config import config
 
 _DEFAULT_WS = f"ws://{config.host}:{config.port}"
 # Prefer repo .env WS_PORT; only override when WRITING_AGENT_WS_URL is explicitly set.

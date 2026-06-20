@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { editKindLabel } from "@/components/edit-diff-preview"
-import { computeEditTextDiffPreview } from "@/lib/edit-text-diff"
+import { computeEditTextDiffPreview } from "@/lib/document/edit-text-diff"
 
 describe("computeEditTextDiffPreview", () => {
   it("keeps unchanged context in replace previews", () => {

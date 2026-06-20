@@ -1,4 +1,4 @@
-from strands_runner import WritingAgentRunner, _messages_from_frontend
+from writing_agent.runtime.strands_runner import WritingAgentRunner, _messages_from_frontend
 
 
 def test_restore_conversation_from_frontend_roles():

@@ -14,11 +14,11 @@ import type {
   PluginsData,
   SettingsConfigData,
   ToolEntryData,
-} from "@/lib/agent-protocol"
-import { SETTINGS_PATH } from "@/lib/document-tabs"
-import type { DocumentTocEntry } from "@/lib/document-toc"
-import { p } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+} from "@/lib/agent/protocol"
+import { SETTINGS_PATH } from "@/lib/document/tabs"
+import type { DocumentTocEntry } from "@/lib/document/toc"
+import { p } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 interface DocumentPanelProps {
   activePath: string | null

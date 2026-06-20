@@ -7,22 +7,22 @@ from pathlib import Path
 
 import pytest
 
-from connection import Connection
-from edit_group_service import EditGroupService
-from edit_group_store import EditGroupStore
+from writing_agent.server.connection import Connection
+from writing_agent.domain.edit_group_service import EditGroupService
+from writing_agent.domain.edit_group_store import EditGroupStore
 from fakes import FakeToolCall, FakeTurn
-from handler import handle_message_events
-from protocol import SessionState
-from session_store import SessionStore
-from strands_runner import WritingAgentRunner
-from writing_tools import propose_edits
+from writing_agent.server.handler import handle_message_events
+from writing_agent.server.protocol import SessionState
+from writing_agent.domain.session_store import SessionStore
+from writing_agent.runtime.strands_runner import WritingAgentRunner
+from writing_agent.tools.writing_tools import propose_edits
 
 DOC = "# Title\n\nWe utilize the API to fetch data.\n\nFinal line.\n"
 
 
 @pytest.fixture(autouse=True)
 def _models(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("model_manager._MODELS_FILE", tmp_path / "models.yaml")
+    monkeypatch.setattr("writing_agent.runtime.model_manager._MODELS_FILE", tmp_path / "models.yaml")
 
 
 class _Ctx:
@@ -131,7 +131,7 @@ def test_fake_chat_turn_proposes_group_without_mutating_doc(tmp_path: Path) -> N
 
     propose_evt = next(e for e in events if e["type"] == "group/propose")
     assert propose_evt["group"]["edits"][0]["new_text"] == "use"
-    # Document buffer unchanged â€” proposing does not mutate.
+    # Document buffer unchanged â€?proposing does not mutate.
     assert conn.session.open_buffers["doc.md"] == DOC
     # The group is persisted and scoped to the session.
     groups = conn.edit_service.list_for_session(conn.current_session_id)
@@ -140,7 +140,7 @@ def test_fake_chat_turn_proposes_group_without_mutating_doc(tmp_path: Path) -> N
 
 def test_subagents_do_not_get_write_tools() -> None:
     # Read-only specialists must not receive propose_edits.
-    from writing_tools import READONLY_TOOLS
+    from writing_agent.tools.writing_tools import READONLY_TOOLS
 
     names = {t.tool_name for t in READONLY_TOOLS}
     assert "read_document" in names

@@ -4,7 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUpDownIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomplete";
 import type React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 

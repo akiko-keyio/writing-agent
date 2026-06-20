@@ -10,8 +10,8 @@ import {
   chatStreamdownLayoutClass,
   chatStreamdownPlugins,
   chatStreamdownRootClass,
-} from "@/lib/chat-streamdown"
-import { cn } from "@/lib/utils"
+} from "@/lib/chat/streamdown"
+import { cn } from "@/lib/shared/utils"
 
 export type ChatStreamdownSlot = "message-markdown" | "reasoning-markdown"
 

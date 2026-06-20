@@ -5,11 +5,11 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import type { ExplorerView } from "@/components/canvas-chrome"
-import { shell } from "@/lib/shell-chrome"
+import { shell } from "@/lib/shell/chrome"
 import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs"
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"
-import { gap } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import { gap } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 /** Tabs 无匹配项时隐藏 Files/Outline 指示条 */
 const EXPLORER_TAB_SENTINEL = "__explorer-none__"

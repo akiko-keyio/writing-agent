@@ -4,7 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, MinusSignIcon } from "@hugeicons/core-free-icons";
 import { NumberField as NumberFieldPrimitive } from "@base-ui/react/number-field";
 import * as React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 import { Label } from "@/components/ui/label";
 
 export const NumberFieldContext: React.Context<{

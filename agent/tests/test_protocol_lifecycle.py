@@ -8,17 +8,17 @@ from pathlib import Path
 
 import pytest
 
-from connection import Connection
+from writing_agent.server.connection import Connection
 from fakes import FakeModel, FakeToolCall, FakeTurn, fake_model_factory
-from handler import error_event, handle_message_events, run_chat_turn
-from main import serve_connection
-from session_store import SessionStore
-from strands_runner import WritingAgentRunner
+from writing_agent.server.handler import error_event, handle_message_events, run_chat_turn
+from writing_agent.server.main import serve_connection
+from writing_agent.domain.session_store import SessionStore
+from writing_agent.runtime.strands_runner import WritingAgentRunner
 
 
 @pytest.fixture(autouse=True)
 def _models(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("model_manager._MODELS_FILE", tmp_path / "models.yaml")
+    monkeypatch.setattr("writing_agent.runtime.model_manager._MODELS_FILE", tmp_path / "models.yaml")
 
 
 def _fake_conn(turns: list[FakeTurn], *, gate: asyncio.Event | None = None) -> Connection:

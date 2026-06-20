@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { toastManager } from "@/components/ui/toast"
-import { flattenMarkdownPaths } from "@/lib/flatten-paths"
-import { pickWorkspaceFolder } from "@/lib/local-workspace"
+import { flattenMarkdownPaths } from "@/lib/shared/flatten-paths"
+import { pickWorkspaceFolder } from "@/lib/workspace/local-workspace"
 import {
   folderProjectEntry,
   isFolderProject,
@@ -10,27 +10,27 @@ import {
   rememberRecentProject,
   REPO_PROJECT,
   type ProjectEntry,
-} from "@/lib/project-catalog"
+} from "@/lib/workspace/project-catalog"
 import {
   ensureWorkspaceHandlePermission,
   loadAllWorkspaceHandles,
   loadWorkspaceHandle,
   saveWorkspaceHandle,
-} from "@/lib/workspace-handle-store"
+} from "@/lib/workspace/handle-store"
 import {
   DEFAULT_WORKSPACE_FILE,
   type WorkspaceFileNode,
-} from "@/lib/workspace-api"
+} from "@/lib/workspace/api"
 import {
   createFolderWorkspaceClient,
   createProjectWorkspaceClient,
   findFirstMarkdownPath,
   flattenWorkspaceTreeRoots,
   type WorkspaceClient,
-} from "@/lib/workspace-client"
-import { bindLocalFolderRoot } from "@/lib/local-folder-actions"
-import { clearFolderAbsoluteRoot } from "@/lib/folder-root-store"
-import { collectMarkdownPaths } from "@/lib/local-folder-paths"
+} from "@/lib/workspace/client"
+import { bindLocalFolderRoot } from "@/lib/workspace/local-folder-actions"
+import { clearFolderAbsoluteRoot } from "@/lib/workspace/folder-root-store"
+import { collectMarkdownPaths } from "@/lib/workspace/local-folder-paths"
 
 export function useWorkspace() {
   const [fileTree, setFileTree] = useState<WorkspaceFileNode[]>([])

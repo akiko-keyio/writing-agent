@@ -1,5 +1,5 @@
-import { splitExtensionLabel } from "@/lib/middle-truncate"
-import { cn } from "@/lib/utils"
+import { splitExtensionLabel } from "@/lib/shared/middle-truncate"
+import { cn } from "@/lib/shared/utils"
 
 export function MiddleTruncateLabel({
   children,

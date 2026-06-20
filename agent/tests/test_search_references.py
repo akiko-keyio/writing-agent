@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from writing_tools import read_document, search_references
+from writing_agent.tools.writing_tools import read_document, search_references
 
 
 def _tool_context(tmp_path: Path, queue: list) -> dict:

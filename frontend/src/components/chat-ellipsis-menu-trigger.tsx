@@ -2,7 +2,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { MoreHorizontalIcon } from "@hugeicons/core-free-icons"
 
 import { ShellIconButton } from "@/components/chrome-toolbar-button"
-import { shell } from "@/lib/shell-chrome"
+import { shell } from "@/lib/shell/chrome"
 
 type ChatEllipsisMenuTriggerProps = {
   label: string

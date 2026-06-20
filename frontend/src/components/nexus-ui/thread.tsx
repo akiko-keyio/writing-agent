@@ -7,8 +7,8 @@ import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom"
 
 import { Button } from "@/components/ui/button"
 import { ScrollBar, ScrollAreaPrimitive } from "@/components/ui/scroll-area"
-import { p, stack } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import { p, stack } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 /** Spring follow while streaming; higher damping = less bounce. */
 export const THREAD_SCROLL_SPRING = {

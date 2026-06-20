@@ -35,30 +35,30 @@ import type {
   Edit,
   EditGroup,
   ModelEntryData,
-} from "@/lib/agent-protocol"
+} from "@/lib/agent/protocol"
 import {
   attachmentsToContext,
   composeMessageTextWithAttachments,
   type ChatAttachment,
-} from "@/lib/chat-attachments"
-import { formatChatContextLabel } from "@/lib/chat-context-label"
+} from "@/lib/chat/attachments"
+import { formatChatContextLabel } from "@/lib/chat/context-label"
 import {
   chatThreadColumnClass,
   contentReadingColumnClass,
-} from "@/lib/content-layout"
+} from "@/lib/shell/content-layout"
 import {
   chatBoxLaneClass,
   chatMarkdownBodyClass,
   chatProcessLineClass,
   chatProseLaneClass,
   chatThreadContentClass,
-} from "@/lib/chat-typography"
+} from "@/lib/chat/typography"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { HugeiconsIcon } from "@/lib/icons"
-import { shell } from "@/lib/shell-chrome"
-import { gap, p, stack } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import { HugeiconsIcon } from "@/lib/shared/icons"
+import { shell } from "@/lib/shell/chrome"
+import { gap, p, stack } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 import type { EditorSelection } from "@/components/document-editor"
 
 export interface ChatThreadProps {

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from protocol import SessionState
-from writing_tools import read_document
+from writing_agent.server.protocol import SessionState
+from writing_agent.tools.writing_tools import read_document
 
 
 def test_read_document_prefers_open_buffer(tmp_path: Path) -> None:

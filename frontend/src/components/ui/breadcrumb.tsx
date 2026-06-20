@@ -5,7 +5,7 @@ import { ArrowRight01Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import type * as React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 
 export function Breadcrumb({
   ...props

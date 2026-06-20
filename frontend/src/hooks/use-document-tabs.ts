@@ -9,13 +9,13 @@ import {
   SETTINGS_PATH,
   updateTabContent,
   upsertTab,
-} from "@/lib/document-tabs"
-import type { DocumentTocEntry } from "@/lib/document-toc"
+} from "@/lib/document/tabs"
+import type { DocumentTocEntry } from "@/lib/document/toc"
 import {
   prefetchFileRead,
   readFileCached,
   invalidateFileReadCache,
-} from "@/lib/file-read-cache"
+} from "@/lib/workspace/file-read-cache"
 import { toastManager } from "@/components/ui/toast"
 
 const DOCUMENT_CHANGE_DEBOUNCE_MS = 1000

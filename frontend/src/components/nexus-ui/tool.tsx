@@ -27,8 +27,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { gap, p, stack } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import { gap, p, stack } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 type ToolStatus = "pending" | "ready" | "running" | "completed" | "error"
 
@@ -68,7 +68,7 @@ function useToolContext(component: string): ToolContextValue {
   return context
 }
 
-import { formatToolPayloadForDisplay } from "@/lib/tool-payload-display"
+import { formatToolPayloadForDisplay } from "@/lib/agent/tool-payload-display"
 
 type ToolProps = Omit<
   ComponentProps<typeof Collapsible>,

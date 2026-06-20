@@ -3,8 +3,8 @@ import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { ChatSwitcherMenuContent } from "@/components/chat-switcher-menu"
 import { Button } from "@/components/ui/button"
 import { Menu, MenuPopup, MenuTrigger } from "@/components/ui/menu"
-import type { ChatSessionListItem } from "@/lib/chat-session-groups"
-import { shell } from "@/lib/shell-chrome"
+import type { ChatSessionListItem } from "@/lib/chat/session-groups"
+import { shell } from "@/lib/shell/chrome"
 
 export function ChatSwitcherTrigger({
   sessions,

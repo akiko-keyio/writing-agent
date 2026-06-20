@@ -26,8 +26,8 @@ import type {
   ExtraProps,
 } from "streamdown";
 import { StreamdownContext, useIsCodeFenceIncomplete } from "streamdown";
-import { gap, p } from "@/lib/spacing";
-import { cn } from "@/lib/utils";
+import { gap, p } from "@/lib/shell/spacing";
+import { cn } from "@/lib/shared/utils";
 
 // -----------------------------------------------------------------------------
 // Types

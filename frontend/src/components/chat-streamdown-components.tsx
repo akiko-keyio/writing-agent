@@ -19,9 +19,9 @@ import {
 } from "streamdown"
 
 import { ChromeInlineScroll } from "@/components/chrome-scroll-area"
-import { chatStreamdownPlugins } from "@/lib/chat-streamdown"
-import { gap, p } from "@/lib/spacing"
-import { cn } from "@/lib/utils"
+import { chatStreamdownPlugins } from "@/lib/chat/streamdown"
+import { gap, p } from "@/lib/shell/spacing"
+import { cn } from "@/lib/shared/utils"
 
 const LANGUAGE_RE = /language-(\S+)/
 const START_LINE_RE = /\{(\d+)\}/

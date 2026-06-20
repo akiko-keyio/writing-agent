@@ -7,15 +7,15 @@ from pathlib import Path
 
 import pytest
 
-from connection import Connection
-from handler import handle_message_events
-from session_store import SessionStore
+from writing_agent.server.connection import Connection
+from writing_agent.server.handler import handle_message_events
+from writing_agent.domain.session_store import SessionStore
 
 
 @pytest.fixture
 def models_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / "models.yaml"
-    monkeypatch.setattr("model_manager._MODELS_FILE", path)
+    monkeypatch.setattr("writing_agent.runtime.model_manager._MODELS_FILE", path)
     return path
 
 
@@ -80,7 +80,7 @@ def test_add_model_updated_response_has_masked_key(models_yaml: Path) -> None:
 
 
 def test_remove_active_model_reselects(models_yaml: Path) -> None:
-    from model_manager import load_models
+    from writing_agent.runtime.model_manager import load_models
 
     conn = _conn()
     _add(conn, "alpha", "sk-alpha-key", "https://a/v1")
@@ -117,7 +117,7 @@ def test_remove_env_display_model_errors(models_yaml: Path, monkeypatch: pytest.
     from types import SimpleNamespace
 
     monkeypatch.setattr(
-        "config.config",
+        "writing_agent.config.config",
         SimpleNamespace(
             openai_api_key="sk-env-secret",
             openai_model="env-model",
@@ -154,7 +154,7 @@ models:
 """,
         encoding="utf-8",
     )
-    from model_manager import load_models
+    from writing_agent.runtime.model_manager import load_models
 
     config = load_models()
     assert config.models == []
@@ -171,7 +171,7 @@ def test_env_fallback_shown_without_persisting(
     # config is a frozen dataclass; replace the module-level instance that
     # env_fallback_entry reads via ``from config import config``.
     monkeypatch.setattr(
-        "config.config",
+        "writing_agent.config.config",
         SimpleNamespace(
             openai_api_key="sk-env-secret",
             openai_model="env-model",

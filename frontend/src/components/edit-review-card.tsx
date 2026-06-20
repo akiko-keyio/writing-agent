@@ -22,9 +22,9 @@ import {
   InputGroupTextarea,
 } from "@/components/ui/input-group"
 import { Separator } from "@/components/ui/separator"
-import { cardBarPad, gap, p, row, rowPad, stack } from "@/lib/spacing"
-import { shell } from "@/lib/shell-chrome"
-import { cn } from "@/lib/utils"
+import { cardBarPad, gap, p, row, rowPad, stack } from "@/lib/shell/spacing"
+import { shell } from "@/lib/shell/chrome"
+import { cn } from "@/lib/shared/utils"
 
 /* ──────── Types ──────── */
 
