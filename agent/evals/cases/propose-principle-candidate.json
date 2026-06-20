@@ -1,0 +1,39 @@
+{
+  "id": "propose-principle-candidate",
+  "suites": ["memory", "behavior"],
+  "description": "Agent proposes a candidate principle that is stored but not injected until accepted.",
+  "autopilot_policy": "suggest_only",
+  "document_path": "intro.md",
+  "document": "# Intro\n\nWe utilize the API.\n",
+  "instruction": "Summarize what I prefer from past rejections and propose a principle.",
+  "initial_memory": [
+    {
+      "kind": "example",
+      "scope": "document",
+      "path": "intro.md",
+      "content": "Rejected utilize -> use",
+      "polarity": "negative",
+      "id": "m-example-1"
+    }
+  ],
+  "model_script": [
+    {
+      "tools": [
+        {
+          "name": "propose_principle",
+          "input": {
+            "content": "Prefer 'use' over 'utilize' in prose.",
+            "rationale": "User rejected utilize in favor of simpler wording.",
+            "case_ids": ["m-example-1"]
+          }
+        }
+      ]
+    },
+    { "text": "Proposed a candidate principle for your review in Settings." }
+  ],
+  "expect": {
+    "must_call": ["propose_principle"],
+    "prompt_not_contains": ["Prefer 'use' over 'utilize'"],
+    "memory_has_candidate": true
+  }
+}

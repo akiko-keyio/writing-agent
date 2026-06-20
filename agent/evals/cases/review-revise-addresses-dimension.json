@@ -1,0 +1,53 @@
+{
+  "id": "review-revise-addresses-dimension",
+  "suites": ["behavior", "auto-review"],
+  "description": "Auto review reports an Effortlessly failure and the proposal addresses it by splitting an overloaded sentence.",
+  "autopilot_policy": "suggest_only",
+  "auto_review": true,
+  "document_path": "methods.md",
+  "document": "# Methods\n\nThe framework aligns feature spaces, calibrates predictions, and estimates uncertainty while preserving the original training objective.\n",
+  "instruction": "Improve the methods sentence for a busy reviewer.",
+  "subagent_responses": {
+    "independent reviewer": "## Care\nPass\n\n## Understand\nPass\n\n## Convinced\nPass\n\n## Effortlessly\nFail - The sentence overloads the reader with too many operations at once; split the sequence."
+  },
+  "model_script": [
+    { "tools": [{ "name": "read_document", "input": { "path": "methods.md" } }] },
+    {
+      "tools": [
+        {
+          "name": "review",
+          "input": {
+            "task": "Evaluate this methods sentence for a busy reviewer:\n\nThe framework aligns feature spaces, calibrates predictions, and estimates uncertainty while preserving the original training objective."
+          }
+        }
+      ]
+    },
+    {
+      "tools": [
+        {
+          "name": "propose_edits",
+          "input": {
+            "path": "methods.md",
+            "title": "Split overloaded method sentence",
+            "summary": "Break the operation list into two sentences.",
+            "edits": [
+              {
+                "kind": "replace",
+                "old_text": "The framework aligns feature spaces, calibrates predictions, and estimates uncertainty while preserving the original training objective.",
+                "new_text": "The framework aligns feature spaces and calibrates predictions. It then estimates uncertainty while preserving the original training objective."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    { "text": "Proposed a split sentence after reader review." }
+  ],
+  "expect": {
+    "must_call": ["read_document", "review", "propose_edits"],
+    "must_call_order": ["review", "propose_edits"],
+    "must_create_group": true,
+    "edit_new_text_contains": ["calibrates predictions. It then estimates uncertainty"],
+    "document_unchanged": true
+  }
+}

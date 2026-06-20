@@ -156,7 +156,7 @@ async def _run_case_async(case: dict[str, Any]) -> CaseResult:
     from edit_group_store import EditGroupStore
     from fake_model import FakeModel
     from handler import handle_message_events
-    from memory_store import MemoryStore
+    from memory_store import MemoryEntry, MemoryStore
     from protocol import SessionState
     from session_store import SessionStore
     from strands_runner import WritingAgentRunner
@@ -181,7 +181,11 @@ async def _run_case_async(case: dict[str, Any]) -> CaseResult:
         conn = Connection(
             session=session,
             runner=WritingAgentRunner(
-                project_root=root, model=FakeModel(_build_turns(case.get("model_script", []))),
+                project_root=root,
+                model=FakeModel(
+                    _build_turns(case.get("model_script", [])),
+                    subagent_responses=case.get("subagent_responses"),
+                ),
             ),
             project_root=root,
             session_store=store,
@@ -189,12 +193,23 @@ async def _run_case_async(case: dict[str, Any]) -> CaseResult:
             memory_store=MemoryStore(base_dir=root),
             current_session_id=store.create_empty(),
         )
+        for raw_entry in case.get("initial_memory", []):
+            if isinstance(raw_entry, dict):
+                conn.memory_store.add(
+                    MemoryEntry.from_dict(
+                        {**raw_entry, "id": raw_entry.get("id") or ""},
+                    ),
+                )
 
         events: list[dict[str, Any]] = []
-        async for event in handle_message_events(
-            conn,
-            {"type": "chat/message", "text": case.get("instruction", ""), "request_id": "eval"},
-        ):
+        chat_payload: dict[str, Any] = {
+            "type": "chat/message",
+            "text": case.get("instruction", ""),
+            "request_id": "eval",
+        }
+        if "auto_review" in case:
+            chat_payload["auto_review"] = bool(case["auto_review"])
+        async for event in handle_message_events(conn, chat_payload):
             events.append(event)
 
         expect = case.get("expect", {})
@@ -226,6 +241,18 @@ def _tool_names(events: list[dict[str, Any]]) -> set[str]:
     }
 
 
+def _tool_call_order(events: list[dict[str, Any]]) -> list[str]:
+    order: list[str] = []
+    for event in events:
+        if event.get("type") != "chat/tool_update":
+            continue
+        status = event.get("status")
+        name = event.get("name")
+        if status == "running" and isinstance(name, str) and name:
+            order.append(name)
+    return order
+
+
 def _check_expectations(
     checks: list[Check],
     events: list[dict[str, Any]],
@@ -245,6 +272,26 @@ def _check_expectations(
 
     for name in expect.get("must_not_call", []):
         checks.append(Check(f"must_not_call:{name}", name not in tool_names))
+
+    expected_order = expect.get("must_call_order")
+    if isinstance(expected_order, list) and expected_order:
+        order = _tool_call_order(events)
+        idx = 0
+        ok = True
+        for want in expected_order:
+            while idx < len(order) and order[idx] != want:
+                idx += 1
+            if idx >= len(order):
+                ok = False
+                break
+            idx += 1
+        checks.append(
+            Check(
+                "must_call_order",
+                ok,
+                f"expected={expected_order} seen={order}",
+            ),
+        )
 
     if "must_create_group" in expect:
         want = bool(expect["must_create_group"])
@@ -276,6 +323,72 @@ def _check_expectations(
         want = bool(expect["document_unchanged"])
         unchanged = conn.session.open_buffers.get(path) == original
         checks.append(Check("document_unchanged", unchanged == want))
+
+    if "prompt_contains" in expect:
+        prompt_text = _conversation_text(conn, role="user")
+        for snippet in expect.get("prompt_contains", []):
+            checks.append(
+                Check(
+                    f"prompt_contains:{snippet}",
+                    str(snippet) in prompt_text,
+                ),
+            )
+
+    if "prompt_not_contains" in expect:
+        prompt_text = _conversation_text(conn, role="user")
+        for snippet in expect.get("prompt_not_contains", []):
+            checks.append(
+                Check(
+                    f"prompt_not_contains:{snippet}",
+                    str(snippet) not in prompt_text,
+                ),
+            )
+
+    if expect.get("memory_has_candidate"):
+        from memory_store import is_candidate_principle
+
+        candidates = [
+            e for e in conn.memory_store.list(kind="principle")
+            if is_candidate_principle(e)
+        ]
+        checks.append(
+            Check(
+                "memory_has_candidate",
+                len(candidates) > 0,
+                f"candidates={len(candidates)}",
+            ),
+        )
+
+    all_edits = [
+        edit
+        for evt in proposed
+        for edit in evt.get("group", {}).get("edits", [])
+    ]
+    for snippet in expect.get("edit_new_text_contains", []):
+        checks.append(
+            Check(
+                f"edit_new_text_contains:{snippet}",
+                any(str(snippet) in str(edit.get("new_text", "")) for edit in all_edits),
+            ),
+        )
+    for kind in expect.get("edit_kind_includes", []):
+        checks.append(
+            Check(
+                f"edit_kind_includes:{kind}",
+                any(edit.get("kind") == kind for edit in all_edits),
+            ),
+        )
+
+
+def _conversation_text(conn: Any, *, role: str) -> str:
+    parts: list[str] = []
+    for msg in conn.runner.messages:
+        if msg.get("role") != role:
+            continue
+        for block in msg.get("content", []):
+            if isinstance(block, dict) and "text" in block:
+                parts.append(str(block["text"]))
+    return "\n".join(parts)
 
 
 async def _apply_and_check_memory(

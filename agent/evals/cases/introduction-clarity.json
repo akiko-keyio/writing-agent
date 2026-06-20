@@ -7,11 +7,11 @@
   "document": "# Introduction\n\nIn this paper, we will basically try to sort of explain the method.\n",
   "instruction": "Tighten the introduction sentence for clarity.",
   "model_script": [
-    { "tools": [{ "name": "read_file", "input": { "path": "intro.md" } }] },
+    { "tools": [{ "name": "read_document", "input": { "path": "intro.md" } }] },
     {
       "tools": [
         {
-          "name": "propose_edit_group",
+          "name": "propose_edits",
           "input": {
             "path": "intro.md",
             "title": "Tighten introduction",
@@ -32,7 +32,7 @@
     { "text": "Proposed a tighter introduction." }
   ],
   "expect": {
-    "must_call": ["read_file", "propose_edit_group"],
+    "must_call": ["read_document", "propose_edits"],
     "must_create_group": true,
     "valid_anchor_count": "all",
     "must_not_emit": ["document/patch"],

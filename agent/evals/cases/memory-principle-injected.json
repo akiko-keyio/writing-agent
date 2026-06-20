@@ -1,0 +1,46 @@
+{
+  "id": "memory-principle-injected",
+  "suites": ["memory", "behavior"],
+  "description": "A stored global principle is injected into the prompt and the scripted proposal follows it.",
+  "autopilot_policy": "suggest_only",
+  "document_path": "abstract.md",
+  "document": "# Abstract\n\nThe proposed method reduces variance and improves calibration.\n",
+  "instruction": "Revise the abstract sentence.",
+  "initial_memory": [
+    {
+      "kind": "principle",
+      "scope": "global",
+      "content": "Prefer active voice; keep one claim per sentence."
+    }
+  ],
+  "model_script": [
+    { "tools": [{ "name": "read_document", "input": { "path": "abstract.md" } }] },
+    {
+      "tools": [
+        {
+          "name": "propose_edits",
+          "input": {
+            "path": "abstract.md",
+            "title": "Separate abstract claims",
+            "summary": "Split the sentence so each claim stands alone.",
+            "edits": [
+              {
+                "kind": "replace",
+                "old_text": "The proposed method reduces variance and improves calibration.",
+                "new_text": "Our method reduces variance. It improves calibration."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    { "text": "Proposed a revision that follows the saved writing principle." }
+  ],
+  "expect": {
+    "must_call": ["read_document", "propose_edits"],
+    "must_create_group": true,
+    "prompt_contains": ["Prefer active voice; keep one claim per sentence."],
+    "edit_new_text_contains": ["Our method reduces variance. It improves calibration."],
+    "document_unchanged": true
+  }
+}

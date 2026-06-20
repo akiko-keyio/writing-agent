@@ -1,17 +1,17 @@
 {
   "id": "check-then-edit",
   "suites": ["smoke", "multiagent"],
-  "description": "Main agent runs the deterministic check_consistency tool, then proposes a validated edit group based on the finding. No direct document mutation.",
+  "description": "Main agent reads the document then proposes a validated edit for mixed spelling variants.",
   "autopilot_policy": "suggest_only",
   "document_path": "methods.md",
   "document": "# Methods\n\nThe colour model is fixed. We use a consistent color throughout.\n",
-  "instruction": "Check the methods section for consistency and fix any issue.",
+  "instruction": "Fix the mixed spelling in the methods section.",
   "model_script": [
-    { "tools": [{ "name": "check_consistency", "input": { "path": "methods.md" } }] },
+    { "tools": [{ "name": "read_document", "input": { "path": "methods.md" } }] },
     {
       "tools": [
         {
-          "name": "propose_edit_group",
+          "name": "propose_edits",
           "input": {
             "path": "methods.md",
             "title": "Consistent spelling",
@@ -23,10 +23,10 @@
         }
       ]
     },
-    { "text": "Proposed a fix based on the consistency check." }
+    { "text": "Proposed a spelling fix after reading the document." }
   ],
   "expect": {
-    "must_call": ["check_consistency", "propose_edit_group"],
+    "must_call": ["read_document", "propose_edits"],
     "must_create_group": true,
     "valid_anchor_count": "all",
     "must_not_emit": ["document/patch"],

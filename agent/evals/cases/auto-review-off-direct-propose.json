@@ -1,0 +1,39 @@
+{
+  "id": "auto-review-off-direct-propose",
+  "suites": ["smoke", "auto-review"],
+  "description": "With Auto Review off, the agent may propose without calling review.",
+  "autopilot_policy": "suggest_only",
+  "auto_review": false,
+  "document_path": "intro.md",
+  "document": "# Introduction\n\nWe did many things quickly.\n",
+  "instruction": "Tighten the introduction.",
+  "model_script": [
+    { "tools": [{ "name": "read_document", "input": { "path": "intro.md" } }] },
+    {
+      "tools": [
+        {
+          "name": "propose_edits",
+          "input": {
+            "path": "intro.md",
+            "title": "Tighter opening",
+            "summary": "Shorten the sentence.",
+            "edits": [
+              {
+                "kind": "replace",
+                "old_text": "We did many things quickly.",
+                "new_text": "We completed several steps efficiently."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    { "text": "Proposed a tighter sentence." }
+  ],
+  "expect": {
+    "must_call": ["read_document", "propose_edits"],
+    "must_not_call": ["review"],
+    "must_create_group": true,
+    "document_unchanged": true
+  }
+}

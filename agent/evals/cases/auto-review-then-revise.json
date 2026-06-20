@@ -1,0 +1,43 @@
+{
+  "id": "auto-review-then-revise",
+  "suites": ["smoke", "auto-review"],
+  "description": "With Auto Review on, the agent calls review before proposing substantive edits.",
+  "autopilot_policy": "suggest_only",
+  "auto_review": true,
+  "document_path": "intro.md",
+  "document": "# Introduction\n\nWe did many things quickly and the reader may lose the thread.\n",
+  "instruction": "Improve clarity in the introduction.",
+  "subagent_responses": {
+    "independent reviewer": "## Care\nFail - The opening lists activities before stating the problem the reader holds.\n\n## Understand\nPass\n\n## Convinced\nPass\n\n## Effortlessly\nFail - One long sentence overloads working memory."
+  },
+  "model_script": [
+    { "tools": [{ "name": "read_document", "input": { "path": "intro.md" } }] },
+    { "tools": [{ "name": "review", "input": { "task": "Evaluate this introduction for a specialist reader:\n\nWe did many things quickly and the reader may lose the thread." } }] },
+    {
+      "tools": [
+        {
+          "name": "propose_edits",
+          "input": {
+            "path": "intro.md",
+            "title": "Clarify opening",
+            "summary": "State the problem before listing activities.",
+            "edits": [
+              {
+                "kind": "replace",
+                "old_text": "We did many things quickly and the reader may lose the thread.",
+                "new_text": "Readers need a clear problem before the list of activities."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    { "text": "Proposed a clearer opening after reader review." }
+  ],
+  "expect": {
+    "must_call": ["read_document", "review", "propose_edits"],
+    "must_call_order": ["review", "propose_edits"],
+    "must_create_group": true,
+    "document_unchanged": true
+  }
+}

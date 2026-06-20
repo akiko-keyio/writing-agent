@@ -7,11 +7,11 @@
   "document": "# Abstract\n\nThis study utilizes a novel method.\n",
   "instruction": "Improve word choice in the abstract.",
   "model_script": [
-    { "tools": [{ "name": "read_file", "input": { "path": "abstract.md" } }] },
+    { "tools": [{ "name": "read_document", "input": { "path": "abstract.md" } }] },
     {
       "tools": [
         {
-          "name": "propose_edit_group",
+          "name": "propose_edits",
           "input": {
             "path": "abstract.md",
             "title": "Plainer verb",
@@ -26,7 +26,7 @@
   ],
   "apply_proposed": true,
   "expect": {
-    "must_call": ["read_file", "propose_edit_group"],
+    "must_call": ["read_document", "propose_edits"],
     "must_create_group": true,
     "memory_example_after": true
   }

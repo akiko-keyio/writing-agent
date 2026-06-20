@@ -1,0 +1,52 @@
+{
+  "id": "researcher-supported-via-subagent",
+  "suites": ["behavior", "evidence"],
+  "description": "The main agent delegates evidence checking to the researcher sub-agent and uses its supported quote in a proposal.",
+  "autopilot_policy": "suggest_only",
+  "document_path": "related-work.md",
+  "document": "# Related Work\n\nPrior work suggests retrieval improves factuality.\n",
+  "instruction": "Check whether the factuality claim has local support and revise it if supported.",
+  "subagent_responses": {
+    "evidence specialist": "Claim: retrieval improves factuality\nClassification: supported\nSource: references/rag.md\nVerbatim quote: \"retrieval-augmented generation reduces unsupported assertions\""
+  },
+  "model_script": [
+    { "tools": [{ "name": "read_document", "input": { "path": "related-work.md" } }] },
+    {
+      "tools": [
+        {
+          "name": "researcher",
+          "input": {
+            "task": "Check this claim against local references: retrieval improves factuality."
+          }
+        }
+      ]
+    },
+    {
+      "tools": [
+        {
+          "name": "propose_edits",
+          "input": {
+            "path": "related-work.md",
+            "title": "Ground factuality claim",
+            "summary": "Attach the local evidence quote to the claim.",
+            "edits": [
+              {
+                "kind": "replace",
+                "old_text": "Prior work suggests retrieval improves factuality.",
+                "new_text": "Local evidence supports this claim: \"retrieval-augmented generation reduces unsupported assertions\"."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    { "text": "Proposed a grounded revision using the local evidence quote." }
+  ],
+  "expect": {
+    "must_call": ["read_document", "researcher", "propose_edits"],
+    "must_call_order": ["researcher", "propose_edits"],
+    "must_create_group": true,
+    "edit_new_text_contains": ["retrieval-augmented generation reduces unsupported assertions"],
+    "document_unchanged": true
+  }
+}

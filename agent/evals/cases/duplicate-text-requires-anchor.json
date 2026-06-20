@@ -7,11 +7,11 @@
   "document": "# Notes\n\nWe process data. We store data. We analyze data.\n",
   "instruction": "Replace 'data' with 'information'.",
   "model_script": [
-    { "tools": [{ "name": "read_file", "input": { "path": "notes.md" } }] },
+    { "tools": [{ "name": "read_document", "input": { "path": "notes.md" } }] },
     {
       "tools": [
         {
-          "name": "propose_edit_group",
+          "name": "propose_edits",
           "input": {
             "path": "notes.md",
             "title": "Rename data -> information",
@@ -25,7 +25,7 @@
     { "text": "That target text repeats; I would need anchors to disambiguate." }
   ],
   "expect": {
-    "must_call": ["read_file", "propose_edit_group"],
+    "must_call": ["read_document", "propose_edits"],
     "must_not_create_group": true,
     "expect_tool_error": true,
     "must_not_emit": ["document/patch"],

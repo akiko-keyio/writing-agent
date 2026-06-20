@@ -52,7 +52,7 @@ def test_regression_case_fails_and_exits_nonzero() -> None:
             {
                 "tools": [
                     {
-                        "name": "propose_edit_group",
+                        "name": "propose_edits",
                         "input": {
                             "path": "doc.md",
                             "edits": [

@@ -7,11 +7,11 @@
   "document": "# Draft\n\nThe quick brown fox jumps over the lazy dog.\n",
   "instruction": "Improve the sentence.",
   "model_script": [
-    { "tools": [{ "name": "read_file", "input": { "path": "draft.md" } }] },
+    { "tools": [{ "name": "read_document", "input": { "path": "draft.md" } }] },
     {
       "tools": [
         {
-          "name": "propose_edit_group",
+          "name": "propose_edits",
           "input": {
             "path": "draft.md",
             "title": "Sharper imagery",
@@ -29,7 +29,7 @@
     "document": "# Draft\n\nThe slow green turtle crawls home.\n"
   },
   "expect": {
-    "must_call": ["read_file", "propose_edit_group"],
+    "must_call": ["read_document", "propose_edits"],
     "must_create_group": true,
     "document_unchanged": true,
     "group_status_after": "stale"
