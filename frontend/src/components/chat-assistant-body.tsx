@@ -16,6 +16,8 @@ import {
 
   ChainOfThoughtStepTitle,
 
+  ChainOfThoughtTrigger,
+
   type ChainOfThoughtStepStatus,
 
 } from "@/components/nexus-ui/chain-of-thought"
@@ -56,6 +58,12 @@ import {
 
   groupConsecutiveTools,
 
+  compactProcessTimeline,
+
+  processForDisplay,
+
+  summarizeProcessTimeline,
+
   legacyProcessFromMessage,
 
   type AgentProcessItem,
@@ -87,7 +95,7 @@ import {
 
 } from "@/lib/chat/typography"
 
-import { formatAgentToolLabel } from "@/lib/agent/tool-labels"
+import { formatAgentToolLabel, formatGroupedToolLabel } from "@/lib/agent/tool-labels"
 import { formatToolPayloadForDisplay } from "@/lib/agent/tool-payload-display"
 
 import { formatReasoningPhaseLabel } from "@/lib/shared/reasoning-phase"
@@ -262,6 +270,12 @@ function InlineToolPayload({
 
 
 
+function toolStepShowsDetails(tool: AgentToolCall): boolean {
+  return tool.status !== "pending"
+}
+
+
+
 function renderToolInChain(
 
   tool: AgentToolCall,
@@ -278,6 +292,8 @@ function renderToolInChain(
 
   const stepKey = `${tool.id}-${tool.status}`
 
+  const hasDetails = toolStepShowsDetails(tool)
+
 
 
   if (toolDisplay === "chain-inline") {
@@ -290,7 +306,7 @@ function renderToolInChain(
 
         status={toolStatusToStep(tool.status)}
 
-        hasContent
+        hasContent={hasDetails}
 
         defaultOpen={false}
 
@@ -298,11 +314,13 @@ function renderToolInChain(
 
       >
 
-        <ChainOfThoughtStepTitle collapsible>
+        <ChainOfThoughtStepTitle collapsible={hasDetails}>
 
           {toolLabel}
 
         </ChainOfThoughtStepTitle>
+
+        {hasDetails ? (
 
         <ChainOfThoughtStepContent>
 
@@ -334,6 +352,8 @@ function renderToolInChain(
 
         </ChainOfThoughtStepContent>
 
+        ) : null}
+
       </ChainOfThoughtStep>
 
     )
@@ -350,7 +370,7 @@ function renderToolInChain(
 
       status={toolStatusToStep(tool.status)}
 
-      hasContent
+      hasContent={hasDetails}
 
       defaultOpen={false}
 
@@ -358,17 +378,21 @@ function renderToolInChain(
 
     >
 
-      <ChainOfThoughtStepTitle collapsible>
+      <ChainOfThoughtStepTitle collapsible={hasDetails}>
 
         {toolLabel}
 
       </ChainOfThoughtStepTitle>
+
+      {hasDetails ? (
 
       <ChainOfThoughtStepContent>
 
         <ToolCallCard tool={tool} defaultOpen={tool.status === "running"} />
 
       </ChainOfThoughtStepContent>
+
+      ) : null}
 
     </ChainOfThoughtStep>
 
@@ -394,6 +418,8 @@ function ReasoningAsChainStep({
 
   const label = formatReasoningPhaseLabel(phase)
 
+  const hasText = Boolean(phase.text.trim())
+
 
 
   const stepKey = `${phase.id}-${phase.streaming ? "streaming" : "done"}`
@@ -408,7 +434,7 @@ function ReasoningAsChainStep({
 
       status={phase.streaming ? "active" : "completed"}
 
-      hasContent
+      hasContent={hasText}
 
       defaultOpen={false}
 
@@ -416,11 +442,13 @@ function ReasoningAsChainStep({
 
     >
 
-      <ChainOfThoughtStepTitle collapsible>
+      <ChainOfThoughtStepTitle collapsible={hasText}>
 
         {label}
 
       </ChainOfThoughtStepTitle>
+
+      {hasText ? (
 
       <ChainOfThoughtStepContent autoScrollBottom={phase.streaming}>
 
@@ -435,6 +463,8 @@ function ReasoningAsChainStep({
         ) : null}
 
       </ChainOfThoughtStepContent>
+
+      ) : null}
 
     </ChainOfThoughtStep>
 
@@ -469,7 +499,7 @@ function GroupedToolStep({
   group: AgentProcessToolGroup
   showConnector: boolean
 }) {
-  const toolLabel = formatAgentToolLabel(group.name)
+  const toolLabel = formatGroupedToolLabel(group.name, group.tools.length)
   const hasError = group.tools.some((t) => t.status === "error")
   const stepStatus = hasError ? "error" : "completed"
 
@@ -481,7 +511,7 @@ function GroupedToolStep({
       showConnector={showConnector}
     >
       <ChainOfThoughtStepTitle collapsible>
-        {`${toolLabel} (${group.tools.length})`}
+        {toolLabel}
       </ChainOfThoughtStepTitle>
       <ChainOfThoughtStepContent>
         <ul className={cn(stack.xs, "list-none")}>
@@ -513,19 +543,36 @@ function ProcessChainBlock({
 
   toolDisplay,
 
+  isStreaming,
+
 }: {
 
   process: AgentProcessItem[]
 
   toolDisplay: ChatToolDisplayMode
 
+  isStreaming: boolean
+
 }) {
 
-  const grouped = groupConsecutiveTools(process)
+  const expandedProcess = compactProcessTimeline(process)
+  const summaryProcess = processForDisplay(process, isStreaming)
+
+  if (summaryProcess.length === 0 && expandedProcess.length === 0) return null
+
+  const grouped = groupConsecutiveTools(expandedProcess)
+
+  const summary = summarizeProcessTimeline(process, isStreaming)
 
   return (
 
-    <ChainOfThought defaultOpen>
+    <ChainOfThought defaultOpen={isStreaming} autoCloseOnAllComplete>
+
+      <ChainOfThoughtTrigger>
+
+        {isStreaming ? "Working…" : summary}
+
+      </ChainOfThoughtTrigger>
 
       <ChainOfThoughtContent className={cn(stack.xs, "!mt-0")}>
 
@@ -669,7 +716,7 @@ export function ChatAssistantBody({ msg }: { msg: AgentChatMessage }) {
 
         useToolChain || reasoningPhases.length > 0 ? (
 
-          <ProcessChainBlock process={process} toolDisplay={toolDisplay} />
+          <ProcessChainBlock process={process} toolDisplay={toolDisplay} isStreaming={Boolean(msg.streaming)} />
 
         ) : (
 

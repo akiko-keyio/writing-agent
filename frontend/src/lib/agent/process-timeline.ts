@@ -1,5 +1,6 @@
 import type { AgentToolCall } from "@/hooks/use-agent-session"
 import type { ChatToolUpdateMessage } from "@/lib/agent/protocol"
+import { formatAgentToolLabel, formatGroupedToolLabel } from "@/lib/agent/tool-labels"
 
 export type AgentReasoningPhase = {
   kind: "reasoning"
@@ -196,6 +197,63 @@ export function groupConsecutiveTools(
 
   flush()
   return result
+}
+
+/** Drop implicit empty reasoning gaps between tools (no prose). */
+export function compactProcessTimeline(
+  process: AgentProcessItem[],
+): AgentProcessItem[] {
+  return process.filter((item) => {
+    if (item.kind !== "reasoning") return true
+    return Boolean(item.text.trim())
+  })
+}
+
+/**
+ * Collapsed trigger + empty-chain checks — when complete, count/show tools only
+ * so the summary is not dominated by "Thought".
+ */
+export function processForDisplay(
+  process: AgentProcessItem[],
+  isStreaming: boolean,
+): AgentProcessItem[] {
+  const compact = compactProcessTimeline(process)
+  if (isStreaming) return compact
+  return compact.filter((item) => item.kind !== "reasoning")
+}
+
+/** One-line summary for collapsed chain-of-thought trigger. */
+export function summarizeProcessTimeline(
+  process: AgentProcessItem[],
+  isStreaming = false,
+): string {
+  if (
+    isStreaming &&
+    process.some((item) => item.kind === "reasoning" && item.streaming) &&
+    !process.some((item) => item.kind === "tool")
+  ) {
+    return "Working…"
+  }
+
+  const grouped = groupConsecutiveTools(processForDisplay(process, isStreaming))
+  const segments: string[] = []
+
+  for (const item of grouped) {
+    if (item.kind === "reasoning") {
+      continue
+    }
+    if (item.kind === "tool-group") {
+      segments.push(formatGroupedToolLabel(item.name, item.tools.length))
+      continue
+    }
+    segments.push(formatAgentToolLabel(item.tool.name))
+  }
+
+  if (segments.length === 0) return "Working…"
+  if (segments.length === 1) return segments[0]!
+  if (segments.length === 2) return segments.join(" · ")
+  const last = segments[segments.length - 1]!
+  return `${segments.length} steps · ${last}`
 }
 
 /** Rebuild a timeline for restored / legacy messages without `process`. */

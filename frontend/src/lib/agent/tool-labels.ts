@@ -42,3 +42,25 @@ export function formatAgentToolLabel(toolName: string): string {
 
   return fallbackToolLabel(key)
 }
+
+const GROUPED_TOOL_LABELS: Record<string, (count: number) => string> = {
+  read_skill_resource: (count) =>
+    count === 1 ? "Read reference" : `Read ${count} references`,
+  read_document: (count) =>
+    count === 1 ? "Read file" : `Read ${count} files`,
+  read_file: (count) => (count === 1 ? "Read file" : `Read ${count} files`),
+  search_references: (count) =>
+    count === 1 ? "Search references" : `Search ${count} references`,
+  skills: (count) => (count === 1 ? "Invoke skills" : `Invoke skills ×${count}`),
+  propose_edits: (count) =>
+    count === 1 ? "Proposed edits" : `Proposed ${count} edit groups`,
+}
+
+/** Label when consecutive same-name tools are grouped (e.g. Read 4 references). */
+export function formatGroupedToolLabel(toolName: string, count: number): string {
+  const key = normalizeToolName(toolName)
+  const formatter = GROUPED_TOOL_LABELS[key]
+  if (formatter) return formatter(count)
+  const base = formatAgentToolLabel(toolName)
+  return count === 1 ? base : `${base} ×${count}`
+}

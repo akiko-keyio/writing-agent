@@ -5,6 +5,11 @@ import {
   resetAgentClient,
   type AgentClient,
 } from "@/lib/agent/client"
+import {
+  acceptEditGroupEvent,
+  acceptEditGroupStateEvent,
+  filterEditGroupsForSession,
+} from "@/lib/agent/edit-group-session"
 import type {
   AgentConnectionState,
   AgentOutboundMessage,
@@ -131,6 +136,12 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
   const listedOnConnectRef = useRef(false)
   const stoppedStreamsRef = useRef<Set<string>>(new Set())
   const currentRequestIdRef = useRef<string | null>(null)
+  const activeSessionIdRef = useRef<string | null>(null)
+
+  const syncActiveSessionId = (sessionId: string | null) => {
+    activeSessionIdRef.current = sessionId
+    setActiveSessionId(sessionId)
+  }
 
   useEffect(() => {
     autoReviewRef.current = autoReview
@@ -156,7 +167,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
           setActiveWorkspaceId(msg.workspace_id)
           setBackendSessions(msg.sessions)
           setSessionListLoaded(true)
-          setActiveSessionId(msg.active_session_id ?? null)
+          syncActiveSessionId(msg.active_session_id ?? null)
           setMessages([])
           setEditGroups([])
           setAgentThinking(false)
@@ -176,7 +187,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
         }
 
         if (msg.type === "session/cleared") {
-          if (msg.session_id) setActiveSessionId(msg.session_id)
+          if (msg.session_id) syncActiveSessionId(msg.session_id)
           setMessages(uiMessagesToChat(msg.messages))
           setEditGroups([])
           setAgentThinking(false)
@@ -187,7 +198,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
         }
 
         if (msg.type === "session/created") {
-          setActiveSessionId(msg.session_id)
+          syncActiveSessionId(msg.session_id)
           if (msg.messages.length > 0) {
             setMessages(uiMessagesToChat(msg.messages))
           }
@@ -212,8 +223,9 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
         }
 
         if (msg.type === "session/restored") {
-          setActiveSessionId(msg.session_id)
+          syncActiveSessionId(msg.session_id)
           setMessages(uiMessagesToChat(msg.messages))
+          setEditGroups([])
           setAgentThinking(false)
           if (typeof msg.auto_review === "boolean") {
             setAutoReview(msg.auto_review)
@@ -348,16 +360,26 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
         }
 
         if (msg.type === "group/propose") {
+          if (!acceptEditGroupEvent(msg.group, activeSessionIdRef.current)) return
           setEditGroups((prev) => upsertGroup(prev, msg.group))
           return
         }
 
         if (msg.type === "group/update") {
+          if (!acceptEditGroupEvent(msg.group, activeSessionIdRef.current)) return
           setEditGroups((prev) => upsertGroup(prev, msg.group))
           return
         }
 
         if (msg.type === "group/state") {
+          if (
+            !acceptEditGroupStateEvent(
+              msg.session_id,
+              activeSessionIdRef.current,
+            )
+          ) {
+            return
+          }
           setEditGroups(msg.groups)
           return
         }
@@ -594,6 +616,10 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
   }, [])
 
   const isStreaming = messages.some((m) => m.streaming)
+  const visibleEditGroups = useMemo(
+    () => filterEditGroupsForSession(editGroups, activeSessionId),
+    [editGroups, activeSessionId],
+  )
 
   return useMemo(
     () => ({
@@ -607,7 +633,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
       sessionListLoaded,
       activeSessionId,
       activeWorkspaceId,
-      editGroups,
+      editGroups: visibleEditGroups,
       autoReview,
       setAutoReviewEnabled,
       sendDocumentOpen,
@@ -638,7 +664,7 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
       sessionListLoaded,
       activeSessionId,
       activeWorkspaceId,
-      editGroups,
+      visibleEditGroups,
       autoReview,
       setAutoReviewEnabled,
       sendDocumentOpen,

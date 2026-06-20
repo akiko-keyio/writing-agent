@@ -4,7 +4,11 @@ import {
   applyReasoningDelta,
   applyToolUpdateToProcess,
   completeActiveReasoning,
+  compactProcessTimeline,
+  groupConsecutiveTools,
+  processForDisplay,
   startImplicitReasoningAfterTool,
+  summarizeProcessTimeline,
 } from "@/lib/agent/process-timeline"
 
 describe("agent-process-timeline", () => {
@@ -86,5 +90,68 @@ describe("agent-process-timeline", () => {
       streaming: true,
       text: "",
     })
+  })
+
+  it("drops empty completed reasoning gaps", () => {
+    const process = compactProcessTimeline([
+      { kind: "reasoning", id: "r1", text: "", streaming: false, durationSeconds: 5 },
+      {
+        kind: "tool",
+        tool: { id: "t1", name: "propose_edits", status: "completed" },
+      },
+    ])
+    expect(process).toHaveLength(1)
+    expect(process[0]).toMatchObject({ kind: "tool" })
+  })
+
+  it("summarizes grouped propose_edits", () => {
+    const summary = summarizeProcessTimeline([
+      { kind: "tool", tool: { id: "t1", name: "read_document", status: "completed" } },
+      { kind: "tool", tool: { id: "t2", name: "propose_edits", status: "completed" } },
+      { kind: "tool", tool: { id: "t3", name: "propose_edits", status: "completed" } },
+    ])
+    expect(summary).toBe("Read file · Proposed 2 edit groups")
+  })
+
+  it("summarizes grouped read_skill_resource", () => {
+    const summary = summarizeProcessTimeline(
+      Array.from({ length: 4 }, (_, i) => ({
+        kind: "tool" as const,
+        tool: {
+          id: `t${i}`,
+          name: "read_skill_resource",
+          status: "completed" as const,
+        },
+      })),
+    )
+    expect(summary).toBe("Read 4 references")
+  })
+
+  it("drops reasoning from completed summary only", () => {
+    const process = [
+      {
+        kind: "reasoning" as const,
+        id: "r1",
+        text: "plan",
+        streaming: false,
+        durationSeconds: 3,
+      },
+      {
+        kind: "tool" as const,
+        tool: { id: "t1", name: "read_file", status: "completed" as const },
+      },
+      {
+        kind: "reasoning" as const,
+        id: "r2",
+        text: "wrap up",
+        streaming: false,
+        durationSeconds: 3,
+      },
+    ]
+
+    expect(processForDisplay(process, false)).toHaveLength(1)
+    expect(compactProcessTimeline(process)).toHaveLength(3)
+    expect(processForDisplay(process, true)).toHaveLength(3)
+    expect(summarizeProcessTimeline(process, false)).toBe("Read file")
   })
 })

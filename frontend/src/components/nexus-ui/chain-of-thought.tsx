@@ -151,7 +151,7 @@ function ChainOfThought({
     <ChainOfThoughtRootContext.Provider value={contextValue}>
       <Collapsible
         data-slot="chain-of-thought"
-        className={cn("not-prose w-full", className)}
+        className={cn("not-prose flex w-full flex-col", gap.xs, className)}
         open={open}
         onOpenChange={handleOpenChange}
         {...props}
@@ -228,7 +228,7 @@ function ChainOfThoughtContent({
     <CollapsibleContent
       data-slot="chain-of-thought-content"
       className={cn(
-        cn("mt-3", stack.md),
+        cn(stack.xs),
         "overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down",
         className,
       )}
