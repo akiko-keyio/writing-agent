@@ -1,33 +1,21 @@
 # Writing Agent
 
-面向学术与技术写作的 AI 协作编辑器——所有修改经审阅后再落盘。
+Writing Agent 是面向论文与专业文档的本地写作工作区。它帮助作者改进结构与表达、核对引用、从读者视角审阅文档，能从用户反馈中学习。
 
-Agent **提议**结构化编辑 → 后端**验证** → 你在 Review Queue **审阅**并 Accept / Dismiss。文档在你确认前不会被改写。
+<p align="center">
+  <img src="docs/screenshots/review-queue.png" alt="Writing Agent" width="840" />
+</p>
 
-![Writing Agent：文稿编辑、结构化审阅与 diff 预览](docs/screenshots/review-queue.png)
+## 基本特性
 
-## 核心功能
-
-### 可控编辑
-
-结构化 Edit Group + diff 预览，逐组 Apply / Dismiss（见上图）。
-
-### 可验证质量
-
-- **引用检查**：校验 DOI / URL 可达性，并与本地 `references/` 对照
-- **读者诊断**：可选 Auto Review，先诊断再修改
-
-### 可积累偏好
-
-从 Accept / Reject / 调整中学习；`propose_principle` 提议的原则需在 Settings → Memory 中确认后生效。
-
-### 跨会话上下文
-
-`remember_context` 持久化读者画像、术语与项目常识，跨会话自动注入。
+- **文档协作编辑**：类 IDE 的文稿工作区，Agent 通过面向改稿任务定制的工具与指令工作；修改建议以 diff 进入 Review Queue，Apply 前不会改动文件。
+- **质量评估与引用核对**：自动校验引用链接可访问性及与文献库的一致性；可选 Auto Review，在隔离上下文中模拟读者反馈，再提出修改方案。
+- **写作偏好学习**：从 Apply、Dismiss 及对建议的调整中归纳写作原则与案例；确认后写入 Memory，形成提议、审阅、学习的持续改进。
+- **跨会话上下文**：持久记录目标读者、领域术语与项目背景，供后续会话读取与更新，减少重复沟通。
 
 ## 快速开始
 
-**Requires:** Node.js ≥ 18、pnpm、Python ≥ 3.11、[uv](https://docs.astral.sh/uv/)、OpenAI 兼容 API key。
+环境：Node.js ≥ 18、pnpm、Python ≥ 3.11、[uv](https://docs.astral.sh/uv/)，以及 OpenAI 兼容 API。
 
 ```bash
 cp .env.example .env
@@ -37,20 +25,7 @@ cp models.yaml.example models.yaml
 
 npm install
 cd frontend && pnpm install && cd ..
-npm run dev                   # Agent :8765 + 前端 :5173
+npm run dev
 ```
 
-打开 http://localhost:5173 ，默认工作区：`examples/`。
-
-## 文档
-
-- [设计原则](docs/principle.md)
-- [演示场景](examples/DEMO-GUIDE.md)
-- [后端结构](agent/README.md)
-
-## 开发
-
-```bash
-cd agent && uv run pytest -q && uv run python -m evals.runner --suite smoke
-cd ../frontend && pnpm run build
-```
+打开 http://localhost:5173
