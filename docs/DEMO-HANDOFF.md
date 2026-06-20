@@ -96,7 +96,7 @@ examples/
 │   └── nanoscale-thermometry.md
 ├── demo-manuscript.md         ← 主演示稿件
 ├── demo-citations.md          ← 引用检查备用
-└── DEMO-GUIDE.md              ← 操作手册（与 docs/DEMO-GUIDE.md 同步）
+└── DEMO-GUIDE.md              ← 演示操作手册（唯一来源）
 ```
 
 系统级状态（不在 examples 内）：

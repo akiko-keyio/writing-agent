@@ -133,7 +133,7 @@ Tests run: `uv run pytest -q` -> `50 passed, 2 deselected`.
 
 ## Phase 10 — DONE
 - `README.md` rewritten (apply-group model, run/test/demo, architecture, known limitations).
-- `docs/browser-smoke.md` checklist. `agent/scripts/ws_smoke.py` self-contained real-WS end-to-end (session->propose->apply->save->disk), PASS. `references/example-evidence.md` for researcher.
+- `docs/browser-smoke.md` checklist. `agent/scripts/ws_smoke.py` self-contained real-WS end-to-end (session->propose->apply->save->disk), PASS. `examples/references/example-evidence.md` for researcher.
 
 ## Continuation hardening
 - **TipTap decorations**: `document-editor.tsx` now renders persistent inline decorations for proposed edits (amber `.edit-anchor`) and stale ones (muted strikethrough `.edit-anchor-stale`), recomputed on edit/content change via a ProseMirror plugin; `editHighlights` threaded layout -> DocumentPanel -> editor; click a Review card -> `scrollToText` selects + scrolls. CSS tokens added to `index.css` (semantic `--warning`/`--muted-foreground`).

@@ -25,10 +25,7 @@ The plan is based on the current repository state and these local docs:
 - `docs/backend.md`
 - `docs/frontend.md`
 - `docs/protocol.md`
-- `docs/handoff.md`
-- `docs/strands-tutorial.md`
-
-`handoff/` is the authoritative execution handoff for future coding agents. `docs/handoff.md` remains historical source context unless it conflicts with this folder.
+`handoff/` is the authoritative execution handoff for future coding agents.
 
 Observed baseline on 2026-06-09:
 

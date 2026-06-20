@@ -1,4 +1,4 @@
-# Example evidence base
+﻿# Example evidence base
 
 A small reference corpus the `researcher`/`verifier` specialists can search with
 the `search_references` tool. Replace with your own sources.

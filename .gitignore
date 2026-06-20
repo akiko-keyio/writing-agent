@@ -57,6 +57,7 @@ agent/.pytest_cache/
 agent/data/
 agent/evals/reports/
 .tmp-*.log
+.tmp-dev*.log
 
 # Design mockups / prototypes (not MVP deliverables)
 **/*-mockup.tsx
