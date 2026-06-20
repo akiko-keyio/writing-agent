@@ -17,6 +17,7 @@ import TableOfContents, {
 import { Plugin, PluginKey } from "@tiptap/pm/state"
 import { Decoration, DecorationSet } from "@tiptap/pm/view"
 
+import { Button } from "@/components/ui/button"
 import { selectionToLineRange } from "@/lib/chat-context-label"
 import {
   normalizeMarkdownHeadings,
@@ -100,24 +101,67 @@ const EditHighlightExtension = Extension.create({
   },
 })
 
-/** First plain-text match of ``needle`` within a single text node. */
+/**
+ * Locate ``needle`` in the document, searching across text-node boundaries
+ * within the same block. Falls back to normalized whitespace matching when
+ * the raw text indexOf fails (handles markdown serialization quirks).
+ */
 function findTextSpan(
   editor: Editor,
   needle: string,
 ): { from: number; to: number } | null {
   const trimmed = needle.trim()
   if (!trimmed) return null
-  const matches: { from: number; to: number }[] = []
+
+  // Collect all text segments with their document positions.
+  const segments: { text: string; from: number }[] = []
   editor.state.doc.descendants((node, pos) => {
-    if (matches.length || !node.isText || !node.text) return undefined
-    const idx = node.text.indexOf(trimmed)
-    if (idx >= 0) {
-      matches.push({ from: pos + idx, to: pos + idx + trimmed.length })
-      return false
+    if (node.isText && node.text) {
+      segments.push({ text: node.text, from: pos })
     }
     return undefined
   })
-  return matches[0] ?? null
+  if (!segments.length) return null
+
+  // Build concatenated text and position map for cross-node search.
+  let fullText = ""
+  const posMap: number[] = [] // posMap[i] = document position of fullText[i]
+  for (const seg of segments) {
+    for (let i = 0; i < seg.text.length; i++) {
+      posMap.push(seg.from + i)
+      fullText += seg.text[i]
+    }
+  }
+
+  // Try exact match first.
+  let idx = fullText.indexOf(trimmed)
+
+  // Fallback: collapse whitespace in both needle and haystack for matching.
+  if (idx < 0) {
+    const collapseWS = (s: string) => s.replace(/\s+/g, " ")
+    const collapsed = collapseWS(fullText)
+    const collapsedNeedle = collapseWS(trimmed)
+    const cIdx = collapsed.indexOf(collapsedNeedle)
+    if (cIdx >= 0) {
+      // Map back through whitespace-collapsed index to original positions.
+      let origIdx = 0
+      let collIdx = 0
+      while (collIdx < cIdx && origIdx < fullText.length) {
+        if (/\s/.test(fullText[origIdx])) {
+          while (origIdx < fullText.length && /\s/.test(fullText[origIdx])) origIdx++
+          collIdx++
+        } else {
+          origIdx++
+          collIdx++
+        }
+      }
+      idx = origIdx
+    }
+  }
+
+  if (idx < 0 || idx >= posMap.length) return null
+  const endIdx = Math.min(idx + trimmed.length, posMap.length) - 1
+  return { from: posMap[idx], to: posMap[endIdx] + 1 }
 }
 
 const TOC_UPDATE_DEBOUNCE_MS = 150
@@ -251,19 +295,26 @@ export const DocumentEditor = forwardRef<
         attributes: {
           class: cn(
             "document-editor min-h-full outline-none",
-            "font-serif text-[17px] leading-8 text-foreground",
-            "[&_h1]:mb-5 [&_h1]:font-serif [&_h1]:text-3xl [&_h1]:font-semibold [&_h1]:leading-snug",
-            "[&_h2]:mb-3.5 [&_h2]:mt-8 [&_h2]:font-serif [&_h2]:text-xl [&_h2]:font-medium [&_h2]:leading-snug",
-            "[&_h3]:mb-3 [&_h3]:mt-6 [&_h3]:font-serif [&_h3]:text-lg [&_h3]:font-medium",
-            "[&_p]:mb-3.5",
+            "font-serif text-[20px] leading-[1.8] text-foreground",
+            "[&_h1]:mb-4 [&_h1]:font-serif [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:leading-snug",
+            "[&_h2]:mb-3.5 [&_h2]:mt-8 [&_h2]:font-serif [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:leading-snug",
+            "[&_h3]:mb-3 [&_h3]:mt-6 [&_h3]:font-serif [&_h3]:text-lg [&_h3]:font-semibold",
+            "[&_p]:mb-4",
           ),
+          spellcheck: "false",
+          autocorrect: "off",
+          autocapitalize: "off",
         },
       },
       onCreate: ({ editor: ed }) => {
         publishToc(ed.storage.tableOfContents.content, true)
       },
-      onUpdate: ({ editor: ed }) => {
+      onUpdate: ({ editor: ed, transaction }) => {
         publishToc(ed.storage.tableOfContents.content)
+        // Ignore decoration-only and programmatic transactions (setContent with
+        // emitUpdate:false). Only user edits should reach autosave.
+        if (!transaction.docChanged) return
+        if (transaction.getMeta("addToHistory") === false) return
         onMarkdownChange?.(ed.getMarkdown())
       },
       onSelectionUpdate: ({ editor: ed }) => {
@@ -414,9 +465,11 @@ export const DocumentEditor = forwardRef<
               className="fixed z-50 -translate-x-1/2 -translate-y-full"
               style={{ left: selectionToolbar.left, top: selectionToolbar.top }}
             >
-              <button
+              <Button
                 type="button"
-                className="rounded-full border border-border bg-popover px-3 py-1 text-xs font-medium text-popover-foreground shadow-md hover:bg-accent"
+                variant="outline"
+                size="xs"
+                className="rounded-full shadow-md hover:bg-popover hover:brightness-[0.98] dark:hover:brightness-105"
                 onMouseDown={(e) => {
                   e.preventDefault()
                   onAddSelectionToChat(selectionToolbar.selection)
@@ -424,7 +477,7 @@ export const DocumentEditor = forwardRef<
                 }}
               >
                 Add to Chat
-              </button>
+              </Button>
             </div>,
             document.body,
           )

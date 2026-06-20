@@ -55,16 +55,16 @@ export function DocumentCanvas({
       ref={docRef}
       className={cn(
         "mx-auto max-w-3xl px-12 pb-24 pt-16",
-        "font-serif text-lg leading-loose text-foreground",
+        "font-serif text-[18px] leading-[1.8] text-foreground",
       )}
     >
       <h1
         id="heading-1"
-        className="mb-5 font-serif text-3xl font-semibold leading-snug text-foreground"
+        className="mb-4 font-serif text-3xl font-bold leading-snug text-foreground"
       >
         The craft of academic writing
       </h1>
-      <p className="mb-3.5">
+      <p className="mb-4">
         Academic writing is often perceived as a rigid, formulaic exercise — a
         necessary hurdle in the pursuit of scholarly recognition. Yet the most
         influential works in any discipline succeed not merely because of their
@@ -75,11 +75,11 @@ export function DocumentCanvas({
 
       <h2
         id="heading-2"
-        className="mb-3.5 mt-8 font-serif text-xl font-medium leading-snug"
+        className="mb-3.5 mt-8 font-serif text-xl font-semibold leading-snug"
       >
         Why clarity matters
       </h2>
-      <p className="mb-3.5">
+      <p className="mb-4">
         The opening paragraph of any academic paper carries a disproportionate
         burden. It must orient the reader, establish relevance, and signal
         intellectual seriousness — all within a few sentences. Researchers often{" "}
@@ -101,7 +101,7 @@ export function DocumentCanvas({
         demonstrate rigor, but this impulse can obscure the very clarity that
         makes research persuasive.
       </p>
-      <p className="mb-3.5">
+      <p className="mb-4">
         <Anchor
           id="e3"
           editStates={editStates}
@@ -119,11 +119,11 @@ export function DocumentCanvas({
 
       <h2
         id="heading-3"
-        className="mb-3.5 mt-8 font-serif text-xl font-medium leading-snug"
+        className="mb-3.5 mt-8 font-serif text-xl font-semibold leading-snug"
       >
         The methodology trap
       </h2>
-      <p className="mb-3.5">
+      <p className="mb-4">
         The methodology section presents its own challenges. Too often, methods
         are described with a false objectivity —{" "}
         <Anchor
@@ -136,7 +136,7 @@ export function DocumentCanvas({
         . Transparent methods sections acknowledge these choices. They explain not
         just what was done, but why alternatives were rejected.
       </p>
-      <p className="mb-3.5">
+      <p className="mb-4">
         Citation practices reveal another tension. The academic convention of
         extensive citation serves legitimate purposes: it situates work within a
         tradition, credits intellectual debts, and provides readers with paths for

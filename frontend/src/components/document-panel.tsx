@@ -7,7 +7,6 @@ import {
   type EditorSelection,
 } from "@/components/document-editor"
 import { SettingsContent, type SettingsSection } from "@/components/settings-editor"
-import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type {
   MemoryData,
@@ -26,8 +25,6 @@ interface DocumentPanelProps {
   documentContent: string
   documentLoading: boolean
   settingsSection?: SettingsSection
-  settingsStartAddModel?: boolean
-  onSettingsStartAddModelHandled?: () => void
   settingsConfig?: SettingsConfigData | null
   settingsTools?: ToolEntryData[] | null
   settingsPlugins?: PluginsData | null
@@ -38,15 +35,15 @@ interface DocumentPanelProps {
   onAddModel?: (model: Omit<ModelEntryData, "api_key_masked"> & { api_key?: string }) => void
   onUpdateModel?: (modelId: string, updates: Partial<ModelEntryData> & { api_key?: string }) => void
   onRemoveModel?: (modelId: string) => void
-  onSetActiveModel?: (modelId: string) => void
   onSetToolEnabled?: (toolId: string, enabled: boolean) => void
   onSetSubagentEnabled?: (name: string, enabled: boolean) => void
   settingsMemory?: MemoryData | null
   settingsMemoryEnabled?: boolean
   onSetMemoryEnabled?: (enabled: boolean) => void
   onDeleteMemory?: (id: string) => void
+  onAcceptCandidatePrinciple?: (id: string) => void
+  onRejectCandidatePrinciple?: (id: string) => void
   onClearMemory?: () => void
-  onSave?: () => void
   editHighlights?: EditHighlight[]
   onAddSelectionToChat?: (selection: EditorSelection) => void
 }
@@ -58,8 +55,6 @@ export const DocumentPanel = forwardRef<DocumentEditorHandle, DocumentPanelProps
       documentContent,
       documentLoading,
       settingsSection = "models",
-      settingsStartAddModel = false,
-      onSettingsStartAddModelHandled,
       settingsConfig,
       settingsTools,
       settingsPlugins,
@@ -70,15 +65,15 @@ export const DocumentPanel = forwardRef<DocumentEditorHandle, DocumentPanelProps
       onAddModel,
       onUpdateModel,
       onRemoveModel,
-      onSetActiveModel,
       onSetToolEnabled,
       onSetSubagentEnabled,
       settingsMemory,
       settingsMemoryEnabled,
       onSetMemoryEnabled,
       onDeleteMemory,
+      onAcceptCandidatePrinciple,
+      onRejectCandidatePrinciple,
       onClearMemory,
-      onSave,
       editHighlights,
       onAddSelectionToChat,
     },
@@ -106,19 +101,18 @@ export const DocumentPanel = forwardRef<DocumentEditorHandle, DocumentPanelProps
               config={settingsConfig ?? null}
               tools={settingsTools ?? null}
               plugins={settingsPlugins ?? null}
-              startAddModel={settingsStartAddModel}
-              onStartAddModelHandled={onSettingsStartAddModelHandled}
               onOpenFile={onOpenFile}
               onAddModel={onAddModel}
               onUpdateModel={onUpdateModel}
               onRemoveModel={onRemoveModel}
-              onSetActiveModel={onSetActiveModel}
               onSetToolEnabled={onSetToolEnabled}
               onSetSubagentEnabled={onSetSubagentEnabled}
               memory={settingsMemory}
               memoryEnabled={settingsMemoryEnabled}
               onSetMemoryEnabled={onSetMemoryEnabled}
               onDeleteMemory={onDeleteMemory}
+              onAcceptCandidatePrinciple={onAcceptCandidatePrinciple}
+              onRejectCandidatePrinciple={onRejectCandidatePrinciple}
               onClearMemory={onClearMemory}
             />
           </main>
@@ -129,17 +123,6 @@ export const DocumentPanel = forwardRef<DocumentEditorHandle, DocumentPanelProps
     return (
       <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
         <main className="chrome-editor-surface relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          {activePath && onSave ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="absolute right-3 top-3 z-10"
-              onClick={onSave}
-            >
-              Save
-            </Button>
-          ) : null}
           <div
             ref={scrollAreaHostRef}
             className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
