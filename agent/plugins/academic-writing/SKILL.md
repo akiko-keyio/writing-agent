@@ -1,6 +1,7 @@
 ---
 name: academic-writing
 description: Refine academic writing for high-impact peer-reviewed STEM journals (e.g., IEEE, Nature/Science sub-journals, Elsevier, Springer). Use this skill whenever a user asks to improve, polish, refine, edit, or proofread academic or research writing — including paper drafts, abstracts, introductions, methodology, results, discussions, or conclusion sections. Accepts any input from rough notes to near-final prose.
+allowed-tools: read_skill_resource skills read_document check_references propose_edits revise_edit remember_context propose_principle review
 ---
 
 # Academic Writing
@@ -9,7 +10,7 @@ This skill takes an existing draft — at any stage from rough notes to near-fin
 
 ## Principles
 
-**On first activation, read `reference/narrative-theory.md`** — it is the reasoning foundation for everything below.
+**On first activation, read `references/narrative-theory.md`** with ``read_skill_resource`` — it is the reasoning foundation for everything below.
 
 Every claim in a paper is either already accepted by the reader or not yet. Writing is the work of converting not-yet into accepted, one step at a time: the reader holds claim A, judges from their background that A implies B, and now holds B. 
 
@@ -96,7 +97,7 @@ For blank or large-scope targets, confirm the output with the user before procee
 
 **Output**: each unit's Known → Question → Answer. Do not persist; generate fresh from the current text each time.
 
-**Before analyzing, read**: `reference/section-guide.md` (section-level conventions).
+**Before analyzing, read**: `references/section-guide.md` (section-level conventions).
 
 ---
 
@@ -111,10 +112,10 @@ For blank or large-scope targets, confirm the output with the user before procee
 
 Steps:
 
-1. **Organize** — break key points into steps; decide presentation order and paragraph strategy (claim-first / build-up, see `reference/sentence-construction.md`).
+1. **Organize** — break key points into steps; decide presentation order and paragraph strategy (claim-first / build-up, see `references/sentence-construction.md`).
 2. **Write sentences** — each sentence departs from what the reader just accepted and lands on a new proposition. Disambiguate first, then trim.
 3. **Self-check** — did the rewrite change the meaning? Did it introduce any unsubstantiated claims?
 
 Every confirmed key point must survive unchanged in meaning. If a rewrite would alter a claim, surface it as an issue instead.
 
-**Reference files to consult**: `reference/word-choice.md`, `reference/sentence-construction.md`.
+**Reference files to consult**: `references/word-choice.md`, `references/sentence-construction.md`.

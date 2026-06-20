@@ -11,7 +11,7 @@ you actually have:
 
 - `search_references` — lexical search over the project reference base (markdown files
   under the `references/` directory). Use it to find passages relevant to a claim.
-- `read_file` — read any project file, including a full reference document or the draft.
+- `read_document` — read any project file, including a full reference document or the draft.
 
 Never claim to have fetched a paper, queried a database, or run a verification script. If
 the evidence is not in the local references, say so.
@@ -20,7 +20,7 @@ the evidence is not in the local references, say so.
 
 1. Extract the specific factual claim(s) you are asked to support.
 2. Use `search_references` with the key terms of each claim to find candidate passages.
-3. Read the matching reference file(s) with `read_file` to confirm context.
+3. Read the matching reference file(s) with `read_document` to confirm context.
 4. For each claim, classify the evidence:
    - **supported** — a local passage clearly backs the claim (quote it verbatim).
    - **contradicted** — a local passage clearly opposes the claim.
