@@ -1,0 +1,13 @@
+tools:
+  read_document:
+    enabled: true
+  check_references:
+    enabled: true
+  propose_edits:
+    enabled: true
+  revise_edit:
+    enabled: true
+  remember_context:
+    enabled: true
+  propose_principle:
+    enabled: true

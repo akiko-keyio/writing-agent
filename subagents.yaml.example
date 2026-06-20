@@ -1,0 +1,5 @@
+subagents:
+  review:
+    enabled: true
+  researcher:
+    enabled: false
