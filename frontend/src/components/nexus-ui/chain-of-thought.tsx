@@ -470,6 +470,20 @@ function ChainOfThoughtStepContent({
   autoScrollBottom = false,
   ...props
 }: ChainOfThoughtStepContentProps) {
+  const body = autoScrollBottom ? (
+    <ChromeInlineScroll
+      maxHeight={chatReasoningScrollMaxHeight}
+      scrollFade={false}
+      horizontalScroll={false}
+      autoScrollBottom
+      className="min-w-0"
+    >
+      {children}
+    </ChromeInlineScroll>
+  ) : (
+    children
+  );
+
   return (
     <CollapsibleContent
       data-slot="chain-of-thought-step-content"
@@ -481,15 +495,7 @@ function ChainOfThoughtStepContent({
       )}
       {...props}
     >
-      <ChromeInlineScroll
-        maxHeight={chatReasoningScrollMaxHeight}
-        scrollFade
-        horizontalScroll={false}
-        autoScrollBottom={autoScrollBottom}
-        className="min-w-0"
-      >
-        {children}
-      </ChromeInlineScroll>
+      {body}
     </CollapsibleContent>
   );
 }

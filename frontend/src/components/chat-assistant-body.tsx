@@ -54,9 +54,13 @@ import type { AgentChatMessage, AgentToolCall } from "@/hooks/use-agent-session"
 
 import {
 
+  groupConsecutiveTools,
+
   legacyProcessFromMessage,
 
   type AgentProcessItem,
+
+  type AgentProcessToolGroup,
 
   type AgentReasoningPhase,
 
@@ -76,12 +80,15 @@ import {
 
   chatProcessLineClass,
 
+  chatMetaLineClass,
+
   chatBoxLaneClass,
   chatProseLaneClass,
 
 } from "@/lib/chat-typography"
 
 import { formatAgentToolLabel } from "@/lib/agent-tool-labels"
+import { formatToolPayloadForDisplay } from "@/lib/tool-payload-display"
 
 import { formatReasoningPhaseLabel } from "@/lib/reasoning-phase"
 
@@ -105,22 +112,12 @@ function toolStatusToStep(status: AgentToolCall["status"]): ChainOfThoughtStepSt
 
 
 
-function formatToolPayload(payload: unknown): string {
-
-  if (typeof payload === "string") return payload
-
-  if (payload === undefined) return ""
-
-  try {
-
-    return JSON.stringify(payload, null, 2)
-
-  } catch {
-
-    return String(payload)
-
-  }
-
+function formatToolPayload(
+  toolName: string,
+  kind: "input" | "output",
+  payload: unknown,
+): string {
+  return formatToolPayloadForDisplay(toolName, kind, payload)
 }
 
 
@@ -157,7 +154,9 @@ function ToolCallCard({
 
       <ToolContent>
 
-        {tool.input !== undefined ? <ToolInput payload={tool.input} /> : null}
+        {tool.input !== undefined ? (
+          <ToolInput payload={tool.input} toolName={tool.name} />
+        ) : null}
 
         <ToolOutput
 
@@ -166,6 +165,8 @@ function ToolCallCard({
           showWhen={["completed", "error"]}
 
           errorText={tool.errorText}
+
+          toolName={tool.name}
 
         />
 
@@ -181,6 +182,8 @@ function ToolCallCard({
 
 function InlineToolPayload({
 
+  toolName,
+
   title,
 
   payload,
@@ -188,6 +191,8 @@ function InlineToolPayload({
   error,
 
 }: {
+
+  toolName: string
 
   title: string
 
@@ -197,7 +202,9 @@ function InlineToolPayload({
 
 }) {
 
-  const code = formatToolPayload(payload)
+  const kind = title.toLowerCase() === "input" ? "input" : "output"
+
+  const code = formatToolPayload(toolName, kind, payload)
 
   return (
 
@@ -231,7 +238,7 @@ function InlineToolPayload({
 
       ) : null}
 
-      {code ? (
+      {code && !error ? (
 
         <ChromeInlineScroll
 
@@ -303,7 +310,7 @@ function renderToolInChain(
 
             {tool.input !== undefined ? (
 
-              <InlineToolPayload title="Input" payload={tool.input} />
+              <InlineToolPayload toolName={tool.name} title="Input" payload={tool.input} />
 
             ) : null}
 
@@ -311,9 +318,11 @@ function renderToolInChain(
 
               <InlineToolPayload
 
+                toolName={tool.name}
+
                 title={tool.status === "error" ? "Error" : "Output"}
 
-                payload={tool.output ?? {}}
+                payload={tool.status === "error" ? (tool.output ?? {}) : (tool.output ?? {})}
 
                 error={tool.errorText}
 
@@ -435,6 +444,69 @@ function ReasoningAsChainStep({
 
 
 
+function briefToolInputSummary(tool: AgentToolCall): string {
+  if (tool.input == null || typeof tool.input !== "object") return ""
+  const inp = tool.input as Record<string, unknown>
+  for (const key of ["path", "name", "file", "resource", "query", "url"]) {
+    const val = inp[key]
+    if (typeof val === "string" && val.trim()) {
+      const text = val.trim()
+      return text.length > 80 ? `${text.slice(0, 77)}…` : text
+    }
+  }
+  for (const val of Object.values(inp)) {
+    if (typeof val === "string" && val.trim() && val.length < 80) {
+      return val.trim()
+    }
+  }
+  return ""
+}
+
+function GroupedToolStep({
+  group,
+  showConnector,
+}: {
+  group: AgentProcessToolGroup
+  showConnector: boolean
+}) {
+  const toolLabel = formatAgentToolLabel(group.name)
+  const hasError = group.tools.some((t) => t.status === "error")
+  const stepStatus = hasError ? "error" : "completed"
+
+  return (
+    <ChainOfThoughtStep
+      status={toolStatusToStep(stepStatus)}
+      hasContent
+      defaultOpen={false}
+      showConnector={showConnector}
+    >
+      <ChainOfThoughtStepTitle collapsible>
+        {`${toolLabel} (${group.tools.length})`}
+      </ChainOfThoughtStepTitle>
+      <ChainOfThoughtStepContent>
+        <ul className={cn(stack.xs, "list-none")}>
+          {group.tools.map((tool) => {
+            const summary = briefToolInputSummary(tool)
+            return (
+              <li
+                key={tool.id}
+                className={cn(
+                  "truncate",
+                  tool.status === "error"
+                    ? "text-sm leading-5 text-destructive"
+                    : chatMetaLineClass,
+                )}
+              >
+                {summary || formatAgentToolLabel(tool.name)}
+              </li>
+            )
+          })}
+        </ul>
+      </ChainOfThoughtStepContent>
+    </ChainOfThoughtStep>
+  )
+}
+
 function ProcessChainBlock({
 
   process,
@@ -449,15 +521,17 @@ function ProcessChainBlock({
 
 }) {
 
+  const grouped = groupConsecutiveTools(process)
+
   return (
 
     <ChainOfThought defaultOpen>
 
       <ChainOfThoughtContent className={cn(stack.xs, "!mt-0")}>
 
-        {process.map((item, index) => {
+        {grouped.map((item, index) => {
 
-          const showConnector = index < process.length - 1
+          const showConnector = index < grouped.length - 1
 
           if (item.kind === "reasoning") {
 
@@ -477,13 +551,31 @@ function ProcessChainBlock({
 
           }
 
+          if (item.kind === "tool-group") {
+
+            return (
+
+              <GroupedToolStep
+
+                key={`group-${item.tools[0]!.id}`}
+
+                group={item}
+
+                showConnector={showConnector}
+
+              />
+
+            )
+
+          }
+
           return renderToolInChain(
 
             item.tool,
 
             index,
 
-            process.length,
+            grouped.length,
 
             toolDisplay,
 

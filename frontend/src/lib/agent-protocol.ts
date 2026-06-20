@@ -11,6 +11,13 @@ export type SelectionContext = {
   text: string
 }
 
+export type EditReviewContext = {
+  group_id: string
+  edit_id: string
+  path: string
+  summary: string
+}
+
 export type ChatMessageContext = {
   active_path?: string
   buffer_snapshot?: string
@@ -18,6 +25,8 @@ export type ChatMessageContext = {
   filename?: string
   selection?: SelectionContext
   mentions?: string[]
+  /** User is adjusting a specific proposed edit from the review queue. */
+  edit_review?: EditReviewContext
 }
 
 export type TextReplacement = {
@@ -54,6 +63,12 @@ export type ChatMessageOut = {
   text: string
   context?: ChatMessageContext
   request_id?: string
+  auto_review?: boolean
+}
+
+export type SessionAutoReviewMessage = {
+  type: "session/auto_review"
+  enabled: boolean
 }
 
 export type ChatCancelMessage = {
@@ -76,6 +91,12 @@ export type SessionSwitchMessage = {
 
 export type SessionListMessage = {
   type: "session/list"
+}
+
+export type WorkspaceSwitchMessage = {
+  type: "workspace/switch"
+  project_root?: string
+  display_name?: string
 }
 
 export type PingMessage = {
@@ -127,11 +148,8 @@ export type EditKind = "replace" | "delete" | "insert"
 export type EditStatus =
   | "proposed"
   | "applied"
-  | "rejected"
-  | "replaced"
   | "stale"
-  | "error"
-  | "deleted"
+  | "dismissed"
 
 export type Edit = {
   id: string
@@ -150,11 +168,8 @@ export type EditGroupStatus =
   | "proposed"
   | "partially_applied"
   | "applied"
-  | "rejected"
-  | "replaced"
-  | "deleted"
+  | "dismissed"
   | "stale"
-  | "error"
 
 export type EditGroup = {
   id: string
@@ -192,8 +207,12 @@ export type MemoryData = {
 
 /** Frontend → Agent (review / document-save / memory) */
 export type GroupApplyMessage = { type: "group/apply"; group_id: string }
-export type GroupRejectMessage = { type: "group/reject"; group_id: string }
-export type GroupDeleteMessage = { type: "group/delete"; group_id: string }
+export type GroupDismissMessage = { type: "group/dismiss"; group_id: string }
+export type GroupRejectMessage = {
+  type: "group/reject"
+  group_id: string
+  edit_id: string
+}
 export type GroupStateRequestMessage = { type: "group/state" }
 export type GroupReplaceEditMessage = {
   type: "group/replace_edit"
@@ -201,14 +220,26 @@ export type GroupReplaceEditMessage = {
   edit_id: string
   edit: Partial<Edit> & { kind: EditKind; old_text?: string; new_text?: string }
 }
-export type DocumentSaveMessage = { type: "document/save"; path: string }
+export type DocumentSaveMessage = {
+  type: "document/save"
+  path: string
+  /** Exact content to persist for ``path``; the backend writes this verbatim. */
+  content?: string
+}
 export type MemoryReadMessage = { type: "memory/read" }
 export type MemoryUpdateMessage = {
   type: "memory/update"
-  action: "add" | "delete" | "set_enabled" | "clear_all"
+  action:
+    | "add"
+    | "delete"
+    | "set_enabled"
+    | "clear_all"
+    | "accept_candidate"
+    | "reject_candidate"
   entry?: Partial<MemoryEntry>
   id?: string
   enabled?: boolean
+  content?: string
 }
 
 export type AgentInboundMessage =
@@ -220,18 +251,20 @@ export type AgentInboundMessage =
   | SessionCreateMessage
   | SessionSwitchMessage
   | SessionListMessage
+  | WorkspaceSwitchMessage
   | PingMessage
   | SettingsReadMessage
   | SettingsUpdateMessage
   | PluginsListMessage
   | GroupApplyMessage
+  | GroupDismissMessage
   | GroupRejectMessage
-  | GroupDeleteMessage
   | GroupStateRequestMessage
   | GroupReplaceEditMessage
   | DocumentSaveMessage
   | MemoryReadMessage
   | MemoryUpdateMessage
+  | SessionAutoReviewMessage
 
 /** Agent → Frontend */
 export type ChatStreamStartMessage = {
@@ -341,17 +374,35 @@ export type SessionCreatedMessage = {
   type: "session/created"
   session_id: string
   messages: SessionUiMessage[]
+  auto_review?: boolean
 }
 
 export type SessionRestoredMessage = {
   type: "session/restored"
   session_id: string
   messages: SessionUiMessage[]
+  auto_review?: boolean
 }
 
 export type SessionListResponseMessage = {
   type: "session/list"
   sessions: SessionSummary[]
+}
+
+export type WorkspaceSwitchedMessage = {
+  type: "workspace/switched"
+  workspace_id: string
+  project_root: string
+  display_name: string
+  active_session_id?: string | null
+  sessions: SessionSummary[]
+  auto_review?: boolean
+}
+
+export type SessionTitleUpdatedMessage = {
+  type: "session/title_updated"
+  session_id: string
+  title: string
 }
 
 export type AgentErrorMessage = {
@@ -365,6 +416,12 @@ export type SessionClearedMessage = {
   type: "session/cleared"
   session_id?: string
   messages: SessionUiMessage[]
+  auto_review?: boolean
+}
+
+export type SessionAutoReviewOutMessage = {
+  type: "session/auto_review"
+  auto_review: boolean
 }
 
 export type ModelEntryData = {
@@ -374,6 +431,8 @@ export type ModelEntryData = {
   api_key_masked: string
   api_base: string
   temperature: number
+  /** In-memory .env fallback — not persisted; cannot edit/delete in Settings. */
+  readonly?: boolean
 }
 
 export type SettingsConfigData = {
@@ -450,6 +509,9 @@ export type AgentOutboundMessage =
   | SessionRestoredMessage
   | SessionClearedMessage
   | SessionListResponseMessage
+  | WorkspaceSwitchedMessage
+  | SessionTitleUpdatedMessage
+  | SessionAutoReviewOutMessage
   | SettingsDataMessage
   | SettingsUpdatedMessage
   | PluginsDataMessage
@@ -475,6 +537,9 @@ const OUTBOUND_TYPES = new Set([
   "session/restored",
   "session/cleared",
   "session/list",
+  "workspace/switched",
+  "session/title_updated",
+  "session/auto_review",
   "settings/data",
   "settings/updated",
   "plugins/data",

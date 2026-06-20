@@ -17,6 +17,17 @@ export type AgentProcessToolItem = {
 
 export type AgentProcessItem = AgentReasoningPhase | AgentProcessToolItem
 
+export type AgentProcessToolGroup = {
+  kind: "tool-group"
+  name: string
+  tools: AgentToolCall[]
+}
+
+export type GroupedProcessItem =
+  | AgentReasoningPhase
+  | AgentProcessToolItem
+  | AgentProcessToolGroup
+
 function reasoningDurationSeconds(startedAt: number): number {
   return Math.max(1, Math.round((Date.now() - startedAt) / 1000))
 }
@@ -132,6 +143,59 @@ export function finalizeRunningTools(
 
 export function finalizeProcess(process: AgentProcessItem[]): AgentProcessItem[] {
   return completeActiveReasoning(finalizeRunningTools(process))
+}
+
+/**
+ * Merge consecutive completed/error tool calls with the same `name`
+ * into a single `tool-group` item. Running tools stay ungrouped
+ * so they remain individually visible during streaming.
+ */
+export function groupConsecutiveTools(
+  process: AgentProcessItem[],
+): GroupedProcessItem[] {
+  const result: GroupedProcessItem[] = []
+  let pending: AgentToolCall[] = []
+  let pendingName = ""
+
+  function flush() {
+    if (pending.length === 0) return
+    if (pending.length === 1) {
+      result.push({ kind: "tool", tool: pending[0]! })
+    } else {
+      result.push({ kind: "tool-group", name: pendingName, tools: pending })
+    }
+    pending = []
+    pendingName = ""
+  }
+
+  for (const item of process) {
+    if (item.kind === "reasoning") {
+      flush()
+      result.push(item)
+      continue
+    }
+
+    const { tool } = item
+    if (tool.status === "running") {
+      flush()
+      result.push(item)
+      continue
+    }
+
+    if (pending.length === 0) {
+      pending = [tool]
+      pendingName = tool.name
+    } else if (tool.name === pendingName) {
+      pending = [...pending, tool]
+    } else {
+      flush()
+      pending = [tool]
+      pendingName = tool.name
+    }
+  }
+
+  flush()
+  return result
 }
 
 /** Rebuild a timeline for restored / legacy messages without `process`. */

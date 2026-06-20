@@ -68,15 +68,7 @@ function useToolContext(component: string): ToolContextValue {
   return context
 }
 
-function stringifyToolPayload(payload: unknown): string {
-  if (typeof payload === "string") return payload
-  if (payload === undefined) return ""
-  try {
-    return JSON.stringify(payload, null, 2)
-  } catch {
-    return String(payload)
-  }
-}
+import { formatToolPayloadForDisplay } from "@/lib/tool-payload-display"
 
 type ToolProps = Omit<
   ComponentProps<typeof Collapsible>,
@@ -213,11 +205,12 @@ type ToolPartProps = {
   kind: "input" | "output"
   payload: unknown
   errorText?: string
+  toolName?: string
 }
 
-function ToolPart({ kind, payload, errorText }: ToolPartProps) {
+function ToolPart({ kind, payload, errorText, toolName = "tool" }: ToolPartProps) {
   const { status } = useToolContext("ToolPart")
-  const code = stringifyToolPayload(payload)
+  const code = formatToolPayloadForDisplay(toolName, kind, payload)
   const isOutputError = kind === "output" && status === "error"
   const title = kind === "input" ? "Input" : isOutputError ? "Error" : "Output"
 
@@ -237,7 +230,7 @@ function ToolPart({ kind, payload, errorText }: ToolPartProps) {
           {errorText ?? "Tool execution failed"}
         </p>
       ) : null}
-      {code ? (
+      {code && !isOutputError ? (
         <ChromeInlineScroll
           maxHeight="12rem"
           className="rounded-lg border border-border bg-muted/50 font-mono text-xs text-foreground"
@@ -249,22 +242,31 @@ function ToolPart({ kind, payload, errorText }: ToolPartProps) {
   )
 }
 
-function ToolInput({ payload }: { payload: unknown }) {
-  return <ToolPart kind="input" payload={payload} />
+function ToolInput({ payload, toolName }: { payload: unknown; toolName?: string }) {
+  return <ToolPart kind="input" payload={payload} toolName={toolName} />
 }
 
 function ToolOutput({
   payload,
   showWhen = ["completed", "error"],
   errorText,
+  toolName,
 }: {
   payload: unknown
   showWhen?: ToolStatus[]
   errorText?: string
+  toolName?: string
 }) {
   const { status } = useToolContext("ToolOutput")
   if (!showWhen.includes(status)) return null
-  return <ToolPart kind="output" payload={payload} errorText={errorText} />
+  return (
+    <ToolPart
+      kind="output"
+      payload={payload}
+      errorText={errorText}
+      toolName={toolName}
+    />
+  )
 }
 
 export type { ToolStatus }

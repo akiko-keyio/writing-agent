@@ -36,9 +36,17 @@ function Thread({
   )
 }
 
-type ThreadContentProps = React.ComponentProps<"div">
+type ThreadContentProps = React.ComponentProps<"div"> & {
+  /** Top/bottom viewport fade while scrolling (disable when a dock sits flush below). */
+  edgeFade?: boolean
+}
 
-function ThreadContent({ className, style, ...props }: ThreadContentProps) {
+function ThreadContent({
+  className,
+  style,
+  edgeFade = true,
+  ...props
+}: ThreadContentProps) {
   const { scrollRef, contentRef } = useStickToBottomContext()
 
   return (
@@ -50,7 +58,8 @@ function ThreadContent({ className, style, ...props }: ThreadContentProps) {
         ref={scrollRef}
         className={cn(
           "h-full overflow-x-hidden rounded-[inherit] outline-none transition-shadows focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background data-has-overflow-y:overscroll-y-contain",
-          "mask-t-from-[calc(100%-min(var(--fade-size),var(--scroll-area-overflow-y-start)))] mask-b-from-[calc(100%-min(var(--fade-size),var(--scroll-area-overflow-y-end)))] [--fade-size:1.5rem]",
+          edgeFade &&
+            "mask-t-from-[calc(100%-min(var(--fade-size),var(--scroll-area-overflow-y-start)))] mask-b-from-[calc(100%-min(var(--fade-size),var(--scroll-area-overflow-y-end)))] [--fade-size:1.5rem]",
         )}
         data-slot="scroll-area-viewport"
       >

@@ -12,6 +12,9 @@ interface ChatPanelProps {
   agentThinking: boolean
   isStreaming: boolean
   connectionState: "connecting" | "open" | "closed"
+  agentError?: string | null
+  onDismissAgentError?: () => void
+  modelsKnown?: boolean
   activeFilename: string | null
   activePath: string | null
   documentContent: string
@@ -28,11 +31,14 @@ interface ChatPanelProps {
   activeModelId?: string | null
   onSelectModel?: (modelId: string) => void
   onOpenModelsSettings?: () => void
+  autoReview?: boolean
+  onAutoReviewChange?: (enabled: boolean) => void
   editGroups?: EditGroup[]
   onApplyGroup?: (groupId: string) => void
-  onRejectGroup?: (groupId: string) => void
-  onDeleteGroup?: (groupId: string) => void
+  onDismissGroup?: (groupId: string) => void
+  onRejectEdit?: (groupId: string, editId: string) => void
   onSelectEdit?: (group: EditGroup, edit: Edit) => void
+  onAddEditToChat?: (group: EditGroup, edit: Edit) => void
   attachments?: ChatAttachment[]
   onRemoveAttachment?: (id: string) => void
   onClearAttachments?: () => void
@@ -44,6 +50,9 @@ export function ChatPanel({
   agentThinking,
   isStreaming,
   connectionState,
+  agentError = null,
+  onDismissAgentError,
+  modelsKnown = false,
   activeFilename,
   activePath,
   documentContent,
@@ -56,11 +65,14 @@ export function ChatPanel({
   activeModelId = null,
   onSelectModel,
   onOpenModelsSettings,
+  autoReview = false,
+  onAutoReviewChange,
   editGroups = [],
   onApplyGroup,
-  onRejectGroup,
-  onDeleteGroup,
+  onDismissGroup,
+  onRejectEdit,
   onSelectEdit,
+  onAddEditToChat,
   attachments = [],
   onRemoveAttachment,
   onClearAttachments,
@@ -88,6 +100,9 @@ export function ChatPanel({
               agentThinking={agentThinking}
               isStreaming={isStreaming}
               connectionState={connectionState}
+              agentError={agentError}
+              onDismissAgentError={onDismissAgentError}
+              modelsKnown={modelsKnown}
               activeFilename={activeFilename}
               activePath={activePath}
               documentContent={documentContent}
@@ -100,11 +115,14 @@ export function ChatPanel({
               activeModelId={activeModelId}
               onSelectModel={onSelectModel}
               onOpenModelsSettings={onOpenModelsSettings}
+              autoReview={autoReview}
+              onAutoReviewChange={onAutoReviewChange}
               editGroups={editGroups}
               onApplyGroup={onApplyGroup}
-              onRejectGroup={onRejectGroup}
-              onDeleteGroup={onDeleteGroup}
+              onDismissGroup={onDismissGroup}
+              onRejectEdit={onRejectEdit}
               onSelectEdit={onSelectEdit}
+              onAddEditToChat={onAddEditToChat}
               attachments={attachments}
               onRemoveAttachment={onRemoveAttachment}
               onClearAttachments={onClearAttachments}

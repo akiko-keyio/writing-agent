@@ -83,9 +83,13 @@ function upsertTool(
 ): AgentToolCall[] {
   const list = [...(tools ?? [])]
   const index = list.findIndex((t) => t.id === update.tool_id)
+  const resolvedName =
+    update.name?.trim() && update.name !== "tool"
+      ? update.name
+      : (list[index]?.name ?? update.name)
   const next: AgentToolCall = {
     id: update.tool_id,
-    name: update.name,
+    name: resolvedName,
     status: update.status,
     input: update.input !== undefined ? update.input : list[index]?.input,
     output:
@@ -111,11 +115,16 @@ function uiMessagesToChat(messages: SessionUiMessage[]): AgentChatMessage[] {
 export function useAgentSession(options: UseAgentSessionOptions = {}) {
   const [connectionState, setConnectionState] =
     useState<AgentConnectionState>("closed")
+  const [agentError, setAgentError] = useState<string | null>(null)
   const [messages, setMessages] = useState<AgentChatMessage[]>([])
   const [agentThinking, setAgentThinking] = useState(false)
   const [backendSessions, setBackendSessions] = useState<SessionSummary[]>([])
+  const [sessionListLoaded, setSessionListLoaded] = useState(false)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null)
   const [editGroups, setEditGroups] = useState<EditGroup[]>([])
+  const [autoReview, setAutoReview] = useState(false)
+  const autoReviewRef = useRef(false)
   const clientRef = useRef<AgentClient | null>(null)
   const optionsRef = useRef(options)
   optionsRef.current = options
@@ -124,11 +133,45 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
   const currentRequestIdRef = useRef<string | null>(null)
 
   useEffect(() => {
+    autoReviewRef.current = autoReview
+  }, [autoReview])
+
+  useEffect(() => {
     const client = getAgentClient({
-      onStateChange: setConnectionState,
+      onStateChange: (state) => {
+        setConnectionState(state)
+        if (state !== "open") {
+          listedOnConnectRef.current = false
+          setSessionListLoaded(false)
+        }
+      },
       onMessage: (msg: AgentOutboundMessage) => {
         if (msg.type === "session/list") {
           setBackendSessions(msg.sessions)
+          setSessionListLoaded(true)
+          return
+        }
+
+        if (msg.type === "workspace/switched") {
+          setActiveWorkspaceId(msg.workspace_id)
+          setBackendSessions(msg.sessions)
+          setSessionListLoaded(true)
+          setActiveSessionId(msg.active_session_id ?? null)
+          setMessages([])
+          setEditGroups([])
+          setAgentThinking(false)
+          if (typeof msg.auto_review === "boolean") {
+            setAutoReview(msg.auto_review)
+          }
+          return
+        }
+
+        if (msg.type === "session/title_updated") {
+          setBackendSessions((prev) =>
+            prev.map((s) =>
+              s.session_id === msg.session_id ? { ...s, title: msg.title } : s,
+            ),
+          )
           return
         }
 
@@ -137,6 +180,9 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
           setMessages(uiMessagesToChat(msg.messages))
           setEditGroups([])
           setAgentThinking(false)
+          if (typeof msg.auto_review === "boolean") {
+            setAutoReview(msg.auto_review)
+          }
           return
         }
 
@@ -147,6 +193,9 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
           }
           setEditGroups([])
           setAgentThinking(false)
+          if (typeof msg.auto_review === "boolean") {
+            setAutoReview(msg.auto_review)
+          }
           setBackendSessions((prev) => {
             const exists = prev.some((s) => s.session_id === msg.session_id)
             if (exists) return prev
@@ -166,6 +215,14 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
           setActiveSessionId(msg.session_id)
           setMessages(uiMessagesToChat(msg.messages))
           setAgentThinking(false)
+          if (typeof msg.auto_review === "boolean") {
+            setAutoReview(msg.auto_review)
+          }
+          return
+        }
+
+        if (msg.type === "session/auto_review") {
+          setAutoReview(msg.auto_review)
           return
         }
 
@@ -325,6 +382,11 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
       onError: (message) => {
         setAgentThinking(false)
         setMessages((prev) => prev.filter((m) => !m.streaming))
+        if (message === "Session not found") {
+          clientRef.current?.send({ type: "session/create" })
+          return
+        }
+        setAgentError(message)
         optionsRef.current.onError?.(message)
       },
     })
@@ -371,12 +433,14 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
       ])
       const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
       currentRequestIdRef.current = requestId
+      setAgentError(null)
       setAgentThinking(true)
       clientRef.current?.send({
         type: "chat/message",
         text: trimmed,
         context,
         request_id: requestId,
+        auto_review: autoReviewRef.current,
       })
     },
     [],
@@ -400,11 +464,13 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
           },
         ]
       })
+      setAgentError(null)
       setAgentThinking(true)
       clientRef.current?.send({
         type: "chat/message",
         text: trimmed,
         context,
+        auto_review: autoReviewRef.current,
       })
     },
     [],
@@ -431,6 +497,19 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
   const requestSessionList = useCallback(() => {
     clientRef.current?.send({ type: "session/list" })
   }, [])
+
+  const switchWorkspace = useCallback(
+    (workspace: { projectRoot?: string | null; displayName?: string }) => {
+      setAgentThinking(false)
+      setSessionListLoaded(false)
+      clientRef.current?.send({
+        type: "workspace/switch",
+        project_root: workspace.projectRoot || undefined,
+        display_name: workspace.displayName,
+      })
+    },
+    [],
+  )
 
   const setWelcomeMessage = useCallback((text: string) => {
     if (!text) {
@@ -477,20 +556,41 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
     clientRef.current?.send({ type: "group/apply", group_id: groupId })
   }, [])
 
-  const rejectGroup = useCallback((groupId: string) => {
-    clientRef.current?.send({ type: "group/reject", group_id: groupId })
+  const dismissGroup = useCallback((groupId: string) => {
+    clientRef.current?.send({ type: "group/dismiss", group_id: groupId })
   }, [])
 
-  const deleteGroup = useCallback((groupId: string) => {
-    clientRef.current?.send({ type: "group/delete", group_id: groupId })
+  const rejectEdit = useCallback((groupId: string, editId: string) => {
+    clientRef.current?.send({
+      type: "group/reject",
+      group_id: groupId,
+      edit_id: editId,
+    })
   }, [])
 
-  const saveDocument = useCallback((path: string) => {
-    clientRef.current?.send({ type: "document/save", path })
+  const saveDocument = useCallback((path: string, content?: string) => {
+    clientRef.current?.send(
+      content === undefined
+        ? { type: "document/save", path }
+        : { type: "document/save", path, content },
+    )
   }, [])
 
   const requestGroupState = useCallback(() => {
     clientRef.current?.send({ type: "group/state" })
+  }, [])
+
+  const setAutoReviewEnabled = useCallback((enabled: boolean) => {
+    setAutoReview(enabled)
+    autoReviewRef.current = enabled
+    clientRef.current?.send({
+      type: "session/auto_review",
+      enabled,
+    })
+  }, [])
+
+  const clearAgentError = useCallback(() => {
+    setAgentError(null)
   }, [])
 
   const isStreaming = messages.some((m) => m.streaming)
@@ -498,12 +598,18 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
   return useMemo(
     () => ({
       connectionState,
+      agentError,
+      clearAgentError,
       messages,
       agentThinking,
       isStreaming,
       backendSessions,
+      sessionListLoaded,
       activeSessionId,
+      activeWorkspaceId,
       editGroups,
+      autoReview,
+      setAutoReviewEnabled,
       sendDocumentOpen,
       sendDocumentChange,
       sendChat,
@@ -512,22 +618,29 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
       clearSession,
       createSession,
       switchSession,
+      switchWorkspace,
       requestSessionList,
       setWelcomeMessage,
       applyGroup,
-      rejectGroup,
-      deleteGroup,
+      dismissGroup,
+      rejectEdit,
       saveDocument,
       requestGroupState,
     }),
     [
       connectionState,
+      agentError,
+      clearAgentError,
       messages,
       agentThinking,
       isStreaming,
       backendSessions,
+      sessionListLoaded,
       activeSessionId,
+      activeWorkspaceId,
       editGroups,
+      autoReview,
+      setAutoReviewEnabled,
       sendDocumentOpen,
       sendDocumentChange,
       sendChat,
@@ -536,11 +649,12 @@ export function useAgentSession(options: UseAgentSessionOptions = {}) {
       clearSession,
       createSession,
       switchSession,
+      switchWorkspace,
       requestSessionList,
       setWelcomeMessage,
       applyGroup,
-      rejectGroup,
-      deleteGroup,
+      dismissGroup,
+      rejectEdit,
       saveDocument,
       requestGroupState,
     ],

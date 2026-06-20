@@ -180,7 +180,7 @@ function ReasoningContent({
     >
       <ChromeInlineScroll
         maxHeight={chatReasoningScrollMaxHeight}
-        scrollFade
+        scrollFade={false}
         horizontalScroll={false}
         autoScrollBottom={isStreaming}
         className="min-w-0"

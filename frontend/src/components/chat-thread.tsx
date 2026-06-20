@@ -7,6 +7,12 @@ import {
   useState,
   type KeyboardEvent,
 } from "react"
+import {
+  ChatThreadStatus,
+  ChatTurnAlert,
+  failedTurnMessageId,
+  hasChatThreadStatus,
+} from "@/components/chat-agent-status"
 import { ChatComposer } from "@/components/chat-composer"
 import { ChatMessageActions } from "@/components/chat-message-actions"
 import { Message, MessageContent } from "@/components/nexus-ui/message"
@@ -22,7 +28,7 @@ import {
   SuggestionList,
   Suggestions,
 } from "@/components/nexus-ui/suggestions"
-import { ReviewPanel } from "@/components/review-panel"
+import { hasActiveReviewGroups, ReviewPanel } from "@/components/review-panel"
 import type { AgentChatMessage } from "@/hooks/use-agent-session"
 import type {
   ChatMessageContext,
@@ -32,6 +38,7 @@ import type {
 } from "@/lib/agent-protocol"
 import {
   attachmentsToContext,
+  composeMessageTextWithAttachments,
   type ChatAttachment,
 } from "@/lib/chat-attachments"
 import { formatChatContextLabel } from "@/lib/chat-context-label"
@@ -59,6 +66,9 @@ export interface ChatThreadProps {
   agentThinking: boolean
   isStreaming: boolean
   connectionState: "connecting" | "open" | "closed"
+  agentError?: string | null
+  onDismissAgentError?: () => void
+  modelsKnown?: boolean
   activeFilename: string | null
   activePath: string | null
   documentContent: string
@@ -75,11 +85,14 @@ export interface ChatThreadProps {
   activeModelId?: string | null
   onSelectModel?: (modelId: string) => void
   onOpenModelsSettings?: () => void
+  autoReview?: boolean
+  onAutoReviewChange?: (enabled: boolean) => void
   editGroups?: EditGroup[]
   onApplyGroup?: (groupId: string) => void
-  onRejectGroup?: (groupId: string) => void
-  onDeleteGroup?: (groupId: string) => void
+  onDismissGroup?: (groupId: string) => void
+  onRejectEdit?: (groupId: string, editId: string) => void
   onSelectEdit?: (group: EditGroup, edit: Edit) => void
+  onAddEditToChat?: (group: EditGroup, edit: Edit) => void
   attachments?: ChatAttachment[]
   onRemoveAttachment?: (id: string) => void
   onClearAttachments?: () => void
@@ -105,6 +118,16 @@ function mentionAlreadyInInput(input: string, insert: string): boolean {
   return input.includes(insert)
 }
 
+function appendMentionToInput(prev: string, insert: string): string {
+  if (mentionAlreadyInInput(prev, insert)) return prev
+  const atMatch = prev.match(/@[\w./:-]*$/)
+  if (atMatch && atMatch.index !== undefined) {
+    return `${prev.slice(0, atMatch.index)}${insert} `
+  }
+  const needsSpace = prev.length > 0 && !/\s$/.test(prev)
+  return `${prev}${needsSpace ? " " : ""}${insert} `
+}
+
 type MentionOption = {
   key: string
   insert: string
@@ -116,6 +139,9 @@ export function ChatThread({
   agentThinking,
   isStreaming,
   connectionState,
+  agentError = null,
+  onDismissAgentError,
+  modelsKnown = false,
   activeFilename,
   activePath,
   documentContent,
@@ -128,11 +154,14 @@ export function ChatThread({
   activeModelId = null,
   onSelectModel,
   onOpenModelsSettings,
+  autoReview = false,
+  onAutoReviewChange,
   editGroups = [],
   onApplyGroup,
-  onRejectGroup,
-  onDeleteGroup,
+  onDismissGroup,
+  onRejectEdit,
   onSelectEdit,
+  onAddEditToChat,
   attachments = [],
   onRemoveAttachment,
   onClearAttachments,
@@ -195,8 +224,10 @@ export function ChatThread({
       const text = raw.trim()
       if (!text || composerLocked || submittingRef.current) return
 
+      const outbound = composeMessageTextWithAttachments(text, attachments)
+
       submittingRef.current = true
-      onSend(text, buildMessageContext(text))
+      onSend(outbound, buildMessageContext(outbound))
       setInput("")
       setShowMentionList(false)
       onClearAttachments?.()
@@ -204,7 +235,13 @@ export function ChatThread({
         submittingRef.current = false
       })
     },
-    [composerLocked, buildMessageContext, onSend, onClearAttachments],
+    [
+      composerLocked,
+      buildMessageContext,
+      onSend,
+      onClearAttachments,
+      attachments,
+    ],
   )
 
   const submitBranchMessage = useCallback(
@@ -220,11 +257,14 @@ export function ChatThread({
         return
       }
 
+      const outbound = composeMessageTextWithAttachments(text, attachments)
+
       submittingRef.current = true
-      onResendFromMessage(branchAnchorId, text, buildMessageContext(text))
+      onResendFromMessage(branchAnchorId, outbound, buildMessageContext(outbound))
       setBranchAnchorId(null)
       setBranchInput("")
       setShowMentionList(false)
+      onClearAttachments?.()
       queueMicrotask(() => {
         submittingRef.current = false
       })
@@ -234,6 +274,8 @@ export function ChatThread({
       onResendFromMessage,
       composerLocked,
       buildMessageContext,
+      onClearAttachments,
+      attachments,
     ],
   )
 
@@ -317,14 +359,7 @@ export function ChatThread({
 
   const insertMention = useCallback(
     (insert: string) => {
-      const apply = (prev: string) => {
-        const atMatch = prev.match(/@[\w./:-]*$/)
-        if (atMatch && atMatch.index !== undefined) {
-          return `${prev.slice(0, atMatch.index)}${insert} `
-        }
-        const needsSpace = prev.length > 0 && !/\s$/.test(prev)
-        return `${prev}${needsSpace ? " " : ""}${insert} `
-      }
+      const apply = (prev: string) => appendMentionToInput(prev, insert)
       if (branchAnchorId) {
         setBranchInput(apply)
       } else {
@@ -356,39 +391,35 @@ export function ChatThread({
     !showThinkingPlaceholder &&
     messages.every((message) => message.id === "welcome")
 
+  const failedMessageId = failedTurnMessageId(messages, agentError)
+
+  const showReviewDock = Boolean(
+    onApplyGroup && onDismissGroup && hasActiveReviewGroups(editGroups),
+  )
+
+  const chatAgentStatusProps = {
+    connectionState,
+    agentError: null,
+    onDismissError: onDismissAgentError,
+    modelsKnown,
+    modelsCount: models.length,
+    onOpenModelsSettings,
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      {connectionState !== "open" ? (
-        <p
-          className={cn(
-            "shrink-0 border-b border-border bg-background text-muted-foreground text-xs",
-            p[3].x,
-            p[1.5].y
-          )}
-        >
-          {connectionState === "connecting"
-            ? "Connecting to agent…"
-            : "Agent offline. Reconnecting…"}
-        </p>
-      ) : null}
-
-      {onApplyGroup && onRejectGroup && onDeleteGroup ? (
-        <ReviewPanel
-          groups={editGroups}
-          onApply={onApplyGroup}
-          onReject={onRejectGroup}
-          onDelete={onDeleteGroup}
-          onSelectEdit={onSelectEdit}
-        />
-      ) : null}
-
       <Thread
         className="min-h-0 flex-1 overflow-hidden"
         resize={isStreaming ? "instant" : THREAD_SCROLL_SPRING}
       >
-        <ThreadContent className={chatThreadContentClass}>
+        <ThreadContent
+          className={chatThreadContentClass}
+          edgeFade={!showReviewDock}
+        >
           <div className={chatThreadColumnClass}>
           {messages.map((msg, index) => {
+            if (msg.id === "welcome") return null
+
             const isBranchAnchor =
               msg.role === "user" && branchAnchorId === msg.id
             const isBelowBranchEdit =
@@ -413,6 +444,10 @@ export function ChatThread({
                     activeModelId={activeModelId}
                     onSelectModel={onSelectModel ?? (() => {})}
                     onOpenModelsSettings={onOpenModelsSettings}
+                    autoReview={autoReview}
+                    onAutoReviewChange={onAutoReviewChange}
+                    attachments={attachments}
+                    onRemoveAttachment={onRemoveAttachment}
                     autoFocus
                 />
               )
@@ -427,37 +462,43 @@ export function ChatThread({
                     "opacity-45 transition-opacity",
                 )}
               >
-                <MessageContent
-                  className={cn(
-                    msg.role === "user"
-                      ? cn(
-                          shell.chatUserBubble,
-                          chatBoxLaneClass,
-                          !composerLocked &&
-                            "cursor-pointer transition-colors hover:bg-accent/20",
-                        )
-                      : cn("group/message-content min-w-0", stack.md),
-                  )}
-                  {...(msg.role === "user" && !composerLocked
-                    ? {
-                        role: "button" as const,
-                        tabIndex: 0,
-                        "aria-label": "Edit and resend this message",
-                        onClick: () => openBranchComposer(msg.id, msg.text),
-                        onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault()
-                            openBranchComposer(msg.id, msg.text)
+                {msg.role === "user" ? (
+                  <div className={cn(chatBoxLaneClass, stack.sm, "min-w-0")}>
+                    <MessageContent
+                      className={cn(
+                        shell.chatUserBubble,
+                        !composerLocked && shell.chatUserBubbleInteractive,
+                      )}
+                      {...(!composerLocked
+                        ? {
+                            role: "button" as const,
+                            tabIndex: 0,
+                            "aria-label": "Edit and resend this message",
+                            onClick: () => openBranchComposer(msg.id, msg.text),
+                            onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                openBranchComposer(msg.id, msg.text)
+                              }
+                            },
                           }
-                        },
-                      }
-                    : {})}
-                >
-                  {msg.role === "user" ? (
-                    <p className={cn("whitespace-pre-wrap", chatMarkdownBodyClass)}>
-                      {msg.text}
-                    </p>
-                  ) : (
+                        : {})}
+                    >
+                      <p className={cn("whitespace-pre-wrap", chatMarkdownBodyClass)}>
+                        {msg.text}
+                      </p>
+                    </MessageContent>
+                    {agentError && msg.id === failedMessageId ? (
+                      <ChatTurnAlert
+                        agentError={agentError}
+                        onDismissError={onDismissAgentError}
+                      />
+                    ) : null}
+                  </div>
+                ) : (
+                  <MessageContent
+                    className={cn("group/message-content min-w-0", stack.md)}
+                  >
                     <>
                       <ChatAssistantBody msg={msg} />
                       {!msg.streaming && msg.text.trim() ? (
@@ -466,45 +507,53 @@ export function ChatThread({
                         </div>
                       ) : null}
                     </>
-                  )}
-                </MessageContent>
+                  </MessageContent>
+                )}
               </Message>
             )
           })}
           {showSuggestions ? (
-            <div className={chatProseLaneClass}>
-            <Suggestions
-              className="items-start"
-              onSelect={(value) => submitMessage(value)}
-            >
-              <SuggestionList orientation="vertical">
-                <Suggestion
-                  variant="outline"
-                  disabled={composerLocked}
-                  value="What markdown files are in this project?"
-                >
-                  What files are in this project?
-                </Suggestion>
-                <Suggestion
-                  variant="outline"
-                  disabled={composerLocked}
-                  value={
-                    activeFilename
-                      ? `Read ${activeFilename} and summarize the introduction.`
-                      : "Read examples/test-text.md and summarize the introduction."
-                  }
-                >
-                  Summarize the open draft
-                </Suggestion>
-                <Suggestion
-                  variant="outline"
-                  disabled={composerLocked}
-                  value="How can I improve clarity in my introduction?"
-                >
-                  Improve introduction clarity
-                </Suggestion>
-              </SuggestionList>
-            </Suggestions>
+            <div className={cn(chatProseLaneClass, "flex flex-1 flex-col items-center justify-center")}>
+              <p className="text-sm text-muted-foreground mb-4">
+                Ask about your writing, or try one of these:
+              </p>
+              <Suggestions
+                className="items-center"
+                onSelect={(value) => submitMessage(value)}
+              >
+                <SuggestionList orientation="vertical">
+                  <Suggestion
+                    variant="outline"
+                    disabled={composerLocked}
+                    value="What markdown files are in this project?"
+                  >
+                    What files are in this project?
+                  </Suggestion>
+                  <Suggestion
+                    variant="outline"
+                    disabled={composerLocked}
+                    value={
+                      activeFilename
+                        ? `Read ${activeFilename} and summarize the introduction.`
+                        : "Read test-text.md and summarize the introduction."
+                    }
+                  >
+                    Summarize the open draft
+                  </Suggestion>
+                  <Suggestion
+                    variant="outline"
+                    disabled={composerLocked}
+                    value="How can I improve clarity in my introduction?"
+                  >
+                    Improve introduction clarity
+                  </Suggestion>
+                </SuggestionList>
+              </Suggestions>
+            </div>
+          ) : null}
+          {hasChatThreadStatus(chatAgentStatusProps) ? (
+            <div className={chatBoxLaneClass}>
+              <ChatThreadStatus {...chatAgentStatusProps} />
             </div>
           ) : null}
           {showThinkingPlaceholder ? (
@@ -558,33 +607,21 @@ export function ChatThread({
           </ScrollArea>
         ) : null}
 
-        {attachments.length > 0 ? (
-          <div className={cn(chatBoxLaneClass, "mb-2 flex flex-wrap", gap.xs)}>
-            {attachments.map((att) => (
-              <span
-                key={att.id}
-                className={cn(
-                  "flex items-center rounded-full border border-border bg-muted text-xs",
-                  gap.xs,
-                  p[2].x,
-                  p[0.5].y,
-                )}
-              >
-                <span className="truncate font-mono">{att.label}</span>
-                <button
-                  type="button"
-                  aria-label="Remove attachment"
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => onRemoveAttachment?.(att.id)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        ) : null}
+        <div className={cn("flex min-w-0 flex-col", gap.lg)}>
+          {showReviewDock ? (
+            <div className={cn(p[1].y, "[overflow-anchor:none]")}>
+              <ReviewPanel
+                groups={editGroups}
+                onApply={onApplyGroup!}
+                onDismiss={onDismissGroup!}
+                onRejectEdit={onRejectEdit}
+                onSelectEdit={onSelectEdit}
+                onAddEditToChat={onAddEditToChat}
+              />
+            </div>
+          ) : null}
 
-        <ChatComposer
+          <ChatComposer
           className={chatBoxLaneClass}
           value={input}
           onChange={handleBottomInputChange}
@@ -599,7 +636,12 @@ export function ChatThread({
           activeModelId={activeModelId}
           onSelectModel={onSelectModel ?? (() => {})}
           onOpenModelsSettings={onOpenModelsSettings}
+          autoReview={autoReview}
+          onAutoReviewChange={onAutoReviewChange}
+          attachments={attachments}
+          onRemoveAttachment={onRemoveAttachment}
         />
+        </div>
         </div>
       </div>
     </div>
