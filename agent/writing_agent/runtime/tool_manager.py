@@ -8,9 +8,9 @@ from typing import Any
 
 import yaml
 
-from writing_agent.paths import REPO_ROOT
+from writing_agent.paths import repo_config_path
 
-_TOOLS_FILE = REPO_ROOT / "tools.yaml"
+_TOOLS_FILE = repo_config_path("tools.yaml")
 
 # Legacy ids kept for migration when reading old tools.yaml files.
 _LEGACY_TOOL_IDS: dict[str, str] = {

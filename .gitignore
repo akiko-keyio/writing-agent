@@ -1,4 +1,7 @@
 .env
+config/models.yaml
+config/tools.yaml
+config/subagents.yaml
 models.yaml
 tools.yaml
 subagents.yaml
@@ -36,6 +39,9 @@ ehthumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+.cursor/
+.agents/
+skills-lock.json
 *.swp
 *.swo
 *~
@@ -64,7 +70,7 @@ agent/evals/reports/
 **/*mockup*.html
 frontend/src/pages/review-queue-design-mockup.tsx
 
-# Example templates (tracked despite ignored real configs above)
-!models.yaml.example
-!tools.yaml.example
-!subagents.yaml.example
+# Config templates (runtime copies live beside them, gitignored above)
+!config/models.yaml.example
+!config/tools.yaml.example
+!config/subagents.yaml.example

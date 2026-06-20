@@ -13,9 +13,9 @@ import yaml
 
 from writing_agent.runtime.subagents import load_subagent_specs
 
-from writing_agent.paths import REPO_ROOT
+from writing_agent.paths import repo_config_path
 
-_SUBAGENTS_FILE = REPO_ROOT / "subagents.yaml"
+_SUBAGENTS_FILE = repo_config_path("subagents.yaml")
 
 
 def load_subagent_prefs() -> dict[str, bool]:

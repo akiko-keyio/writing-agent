@@ -10,7 +10,7 @@ uv sync
 uv run python main.py
 ```
 
-Configure via repo-root `.env` and `models.yaml` / `tools.yaml` / `subagents.yaml` (see `*.example` templates).
+Configure via repo-root `.env` and `config/models.yaml`, `config/tools.yaml`, `config/subagents.yaml` (copy from `config/*.example`).
 
 Listens on `ws://localhost:8765` (frontend proxies `/ws` in dev).
 

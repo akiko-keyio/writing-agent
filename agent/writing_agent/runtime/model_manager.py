@@ -9,9 +9,9 @@ from typing import Any
 
 import yaml
 
-from writing_agent.paths import REPO_ROOT
+from writing_agent.paths import repo_config_path
 
-_MODELS_FILE = REPO_ROOT / "models.yaml"
+_MODELS_FILE = repo_config_path("models.yaml")
 
 
 @dataclass

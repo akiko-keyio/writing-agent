@@ -19,9 +19,9 @@ Writing Agent 是面向论文与专业文档的本地写作工作区。它帮助
 
 ```bash
 cp .env.example .env
-cp tools.yaml.example tools.yaml
-cp subagents.yaml.example subagents.yaml
-cp models.yaml.example models.yaml
+cp config/tools.yaml.example config/tools.yaml
+cp config/subagents.yaml.example config/subagents.yaml
+cp config/models.yaml.example config/models.yaml
 
 npm install
 cd frontend && pnpm install && cd ..
