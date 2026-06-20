@@ -47,9 +47,9 @@ export function ExplorerPanelToggle({
       onClick={() => onOpenChange(!open)}
     >
       {isShown ? (
-        <HugeiconsIcon icon={PanelLeftCloseIcon} aria-hidden="true" />
-      ) : (
         <HugeiconsIcon icon={PanelLeftOpenIcon} aria-hidden="true" />
+      ) : (
+        <HugeiconsIcon icon={PanelLeftCloseIcon} aria-hidden="true" />
       )}
     </ShellTooltipIconButton>
   )

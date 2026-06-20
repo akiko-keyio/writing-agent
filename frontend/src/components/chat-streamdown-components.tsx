@@ -40,9 +40,13 @@ function isPlainTextFence(language: string): boolean {
 
 const codeBlockBodyPad = cn(p[4].x, p[2].y)
 
-/** Matches `ChatMarkdownTable` inner chrome — border on wrapper, scroll inside. */
+/** Code block outer chrome — border on wrapper, scroll inside. */
 const codeBlockChromeClass =
   "relative overflow-hidden rounded-md border border-border bg-background"
+
+/** Preview — markdown table chrome at L2 (aligned with Review / Tool cards). */
+const markdownTableChromeClass =
+  "overflow-hidden rounded-lg border border-border bg-background"
 
 const lineNumberClass = cn(
   "block before:content-[counter(line)] before:inline-block before:[counter-increment:line]",
@@ -497,7 +501,7 @@ export const ChatMarkdownTable = memo(function ChatMarkdownTable({
     <div data-streamdown="table-wrapper" className="min-w-0">
       <div
         className={cn(
-          "overflow-hidden rounded-md border border-border bg-background",
+          markdownTableChromeClass,
           "[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-muted/80",
           "[&_th]:whitespace-normal [&_td]:whitespace-normal",
           "[&_th]:break-words [&_td]:break-words",

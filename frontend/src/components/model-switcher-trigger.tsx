@@ -1,4 +1,4 @@
-import { ArrowDown01Icon, CircleIcon, Key01Icon, Tick01Icon } from "@hugeicons/core-free-icons"
+import { ArrowDown01Icon, Key01Icon } from "@hugeicons/core-free-icons"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -6,6 +6,8 @@ import {
   MenuGroup,
   MenuItem,
   MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
   MenuSeparator,
   MenuTrigger,
 } from "@/components/ui/menu"
@@ -14,26 +16,25 @@ import { HugeiconsIcon } from "@/lib/icons"
 import { shell } from "@/lib/shell-chrome"
 import { cn } from "@/lib/utils"
 
-function endpointHost(base: string): string {
-  const trimmed = base.trim()
-  if (!trimmed) return ""
+/** Host label for model endpoint (Settings subtitle / composer hint). */
+export function modelEndpointLabel(apiBase: string | undefined): string {
+  const trimmed = apiBase?.trim() ?? ""
+  if (!trimmed) return "No base URL"
   try {
     return new URL(trimmed).host
   } catch {
-    return trimmed.replace(/^https?:\/\//, "").split("/")[0] ?? ""
+    return trimmed.replace(/^https?:\/\//, "").split("/")[0] ?? trimmed
   }
 }
 
-/** Readable label: provider + model, falling back to endpoint host or id. */
+function endpointHost(base: string): string {
+  return modelEndpointLabel(base)
+}
+
+/** Readable label — model id only; no provider prefix. */
 export function modelDisplayName(model: ModelEntryData): string {
   const name = model.model?.trim() ?? ""
-  const provider = model.provider?.trim() ?? ""
-  if (name) {
-    if (provider && !name.toLowerCase().includes(provider.toLowerCase())) {
-      return `${provider} · ${name}`
-    }
-    return name
-  }
+  if (name) return name
   const host = endpointHost(model.api_base ?? "")
   if (host) return host
   return model.id || "Unnamed model"
@@ -73,6 +74,7 @@ export function ModelSwitcherTrigger({
   const label = active ? modelDisplayName(active) : "No model"
   const isComposer = variant === "composer"
   const menuItemClass = isComposer ? shell.projectMenuItem : shell.menuItem
+  const selectedModelId = activeModelId ?? models[0]?.id ?? ""
 
   return (
     <Menu>
@@ -107,41 +109,23 @@ export function ModelSwitcherTrigger({
           </MenuGroup>
         ) : (
           <>
-            <MenuGroup>
-              {models.map((model) => {
-                const isActive = model.id === (activeModelId ?? models[0]?.id)
-                return (
-                  <MenuItem
+            <MenuRadioGroup
+              className="min-w-0 w-full"
+              value={selectedModelId}
+              onValueChange={onSelectModel}
+            >
+              <MenuGroup>
+                {models.map((model) => (
+                  <MenuRadioItem
                     key={model.id}
-                    className={cn(
-                      menuItemClass,
-                      isActive && "bg-accent text-accent-foreground",
-                    )}
-                    onClick={() => onSelectModel(model.id)}
+                    value={model.id}
+                    className={shell.menuRadioItem}
                   >
-                    {isActive ? (
-                      <HugeiconsIcon
-                        icon={CircleIcon}
-                        aria-hidden="true"
-                        className="size-2 shrink-0 fill-primary text-primary"
-                      />
-                    ) : (
-                      <span aria-hidden="true" className="size-2 shrink-0" />
-                    )}
-                    <span className="min-w-0 flex-1 truncate">
-                      {modelDisplayName(model)}
-                    </span>
-                    {isActive ? (
-                      <HugeiconsIcon
-                        icon={Tick01Icon}
-                        aria-hidden="true"
-                        className="size-4 shrink-0 text-primary"
-                      />
-                    ) : null}
-                  </MenuItem>
-                )
-              })}
-            </MenuGroup>
+                    {modelDisplayName(model)}
+                  </MenuRadioItem>
+                ))}
+              </MenuGroup>
+            </MenuRadioGroup>
             {onOpenModelsSettings ? <MenuSeparator /> : null}
             <MenuGroup>
               <AddModelsMenuItem

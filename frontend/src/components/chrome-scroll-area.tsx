@@ -53,13 +53,14 @@ export function ChromeInlineScroll({
   }, [autoScrollBottom, children])
 
   const capped = maxHeight != null
+  const effectiveScrollbarGutter = capped ? false : scrollbarGutter
 
   return (
     <div
       ref={rootRef}
       className={cn(
-        "min-w-0 max-w-full",
-        capped && "overflow-hidden",
+        "flex min-w-0 max-w-full flex-col",
+        capped ? "overflow-hidden" : "min-h-0",
         className,
       )}
       style={capped ? { maxHeight, ...style } : style}
@@ -67,10 +68,12 @@ export function ChromeInlineScroll({
       <ScrollArea
         data-slot="chrome-inline-scroll"
         className={cn(
-          "max-w-full min-h-0",
-          capped ? "h-full max-h-full" : "size-full",
+          "min-w-0 max-w-full",
+          capped
+            ? "h-auto max-h-[inherit] [&_[data-slot=scroll-area-viewport]]:h-auto [&_[data-slot=scroll-area-viewport]]:max-h-[inherit]"
+            : "min-h-0 flex-1 size-full",
         )}
-        scrollbarGutter={scrollbarGutter}
+        scrollbarGutter={effectiveScrollbarGutter}
         {...props}
       >
         {children}

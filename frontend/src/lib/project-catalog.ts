@@ -6,11 +6,11 @@ export type ProjectEntry = {
   path: string
 }
 
-/** 开发服务器默认工作区（`/api/workspace`） */
+/** 开发服务器默认工作区（``/api/workspace`` → ``examples/``） */
 export const REPO_PROJECT: ProjectEntry = {
   id: "repo",
-  name: "Writing Agent",
-  path: "Server workspace · /api/workspace",
+  name: "Examples",
+  path: "Server workspace · examples/",
 }
 
 export function isFolderProject(entry: ProjectEntry): boolean {

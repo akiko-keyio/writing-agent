@@ -34,6 +34,23 @@ export function useSettings() {
     getAgentClient().send({ type: "memory/update", action: "delete", id })
   }, [])
 
+  const acceptCandidatePrinciple = useCallback((id: string, content?: string) => {
+    getAgentClient().send({
+      type: "memory/update",
+      action: "accept_candidate",
+      id,
+      content,
+    })
+  }, [])
+
+  const rejectCandidatePrinciple = useCallback((id: string) => {
+    getAgentClient().send({
+      type: "memory/update",
+      action: "reject_candidate",
+      id,
+    })
+  }, [])
+
   const clearMemory = useCallback(() => {
     getAgentClient().send({ type: "memory/update", action: "clear_all" })
   }, [])
@@ -127,6 +144,8 @@ export function useSettings() {
     setSubagentEnabled,
     setMemoryEnabled: setMemoryEnabledRemote,
     deleteMemoryEntry,
+    acceptCandidatePrinciple,
+    rejectCandidatePrinciple,
     clearMemory,
     handleMessage,
   }

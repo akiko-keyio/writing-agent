@@ -15,9 +15,10 @@ import { useChatSessions } from "@/hooks/use-chat-sessions"
 import { useSettings } from "@/hooks/use-settings"
 import { useWorkspace } from "@/hooks/use-workspace"
 import { usePanelResize } from "@/hooks/use-panel-resize"
-import type { DocumentPatchMessage } from "@/lib/agent-protocol"
+import type { DocumentPatchMessage, DocumentBufferMessage, DocumentSavedMessage } from "@/lib/agent-protocol"
 import type { EditorSelection } from "@/components/document-editor"
 import {
+  makeEditReviewAttachment,
   makeSelectionAttachment,
   type ChatAttachment,
 } from "@/lib/chat-attachments"
@@ -62,7 +63,13 @@ export function Layout() {
   const [fullscreenPane, setFullscreenPane] =
     useState<WorkbenchFullscreenPane | null>(null)
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("models")
-  const [settingsStartAddModel, setSettingsStartAddModel] = useState(false)
+
+  const documentTabsRef = useRef<ReturnType<typeof useDocumentTabs> | null>(null)
+  const activePathRef = useRef<string | null>(null)
+  const lastSavedContentRef = useRef(new Map<string, string>())
+  const pendingSaveContentRef = useRef(new Map<string, string>())
+  const onDocumentBufferRef = useRef<(msg: DocumentBufferMessage) => void>(() => {})
+  const onDocumentSavedRef = useRef<(msg: DocumentSavedMessage) => void>(() => {})
 
   const explorerPanel = usePanelResize({
     initial: EXPLORER_PANEL_WIDTH_DEFAULT,
@@ -82,23 +89,28 @@ export function Layout() {
     treeLoading,
     treeError,
     activeProject,
+    agentProjectRoot,
     recentProjects,
     linkedFolderIds,
     mentionablePaths,
-    workspace,
+    getWorkspace,
     handleOpenFolder,
     handleSelectProject,
     refreshFileTree,
     setFileOpenCallback,
+    setFileChangedCallback,
   } = useWorkspace()
 
   const handleDocumentPatch = useCallback(
     (patch: DocumentPatchMessage) => {
-      if (patch.document) {
-        documentTabs.setDocumentContent(patch.document)
-        if (documentTabs.activePath) {
-          documentTabs.skipNextDocumentOpenRef.current = true
-        }
+      if (!patch.document) return
+      // Defensive: only ever mutate the editor surface for the active path.
+      // A patch addressed to a different document must never overwrite the
+      // currently shown content (which autosave would then persist).
+      if (patch.path && patch.path !== activePathRef.current) return
+      documentTabsRef.current?.setDocumentContent(patch.document)
+      if (activePathRef.current) {
+        documentTabsRef.current!.skipNextDocumentOpenRef.current = true
       }
     },
     []
@@ -108,28 +120,25 @@ export function Layout() {
 
   const agent = useAgentSession({
     onDocumentPatch: handleDocumentPatch,
-    onDocumentBuffer: (msg) => {
-      // Buffer changed by the backend (applied edit group) — sync editor, tab,
-      // and dirty state so switching tabs or saving uses the applied content.
-      documentTabs.applyExternalContent(msg.path, msg.document)
-    },
-    onDocumentSaved: (msg) => {
-      if (msg.ok) documentTabs.markSaved(msg.path)
-      toastManager.add({
-        type: msg.ok ? "success" : "error",
-        title: msg.ok ? "Document saved" : "Save failed",
-        description: msg.path,
-      })
-    },
-    onError: (message) => {
-      toastManager.add({
-        type: "error",
-        title: "Agent error",
-        description: message,
-      })
-    },
+    onDocumentBuffer: (msg) => onDocumentBufferRef.current(msg),
+    onDocumentSaved: (msg) => onDocumentSavedRef.current(msg),
     onAgentMessage: settings.handleMessage,
   })
+
+  useEffect(() => {
+    if (agent.connectionState !== "open" || !activeProject) return
+    const isFolderWorkspace = activeProject.id.startsWith("folder:")
+    if (isFolderWorkspace && !agentProjectRoot) return
+    agent.switchWorkspace({
+      projectRoot: isFolderWorkspace ? agentProjectRoot : undefined,
+      displayName: activeProject.name,
+    })
+  }, [
+    activeProject,
+    agent.connectionState,
+    agent.switchWorkspace,
+    agentProjectRoot,
+  ])
 
   useEffect(() => {
     if (agent.connectionState !== "open" || welcomeShownRef.current) return
@@ -148,31 +157,85 @@ export function Layout() {
     [agent.sendDocumentOpen, agent.sendDocumentChange]
   )
 
+  const requestDocumentSave = useCallback(
+    (path: string, content: string) => {
+      if (path === SETTINGS_PATH) return
+      if (lastSavedContentRef.current.get(path) === content) return
+
+      const tab = documentTabsRef.current?.tabs.find((t) => t.path === path)
+      if (tab && !tab.dirty) return
+
+      pendingSaveContentRef.current.set(path, content)
+      // Send the exact content paired with this path so the backend writes it
+      // verbatim, never a desynced shared buffer.
+      agent.saveDocument(path, content)
+    },
+    [agent.saveDocument]
+  )
+
   const documentTabs = useDocumentTabs({
-    workspace,
+    workspace: getWorkspace(),
     onDocumentOpen: (content, path) => {
       syncDocumentToAgent(content, path, true)
+      if (path !== SETTINGS_PATH) {
+        lastSavedContentRef.current.set(path, content)
+      }
     },
     onDocumentChange: (content, path) => {
+      if (path === SETTINGS_PATH) return
       syncDocumentToAgent(content, path)
+      requestDocumentSave(path, content)
     },
   })
 
+  documentTabsRef.current = documentTabs
+  activePathRef.current = documentTabs.activePath
+
+  onDocumentBufferRef.current = (msg) => {
+    if (msg.path === SETTINGS_PATH) return
+    documentTabs.applyExternalContent(msg.path, msg.document)
+    requestDocumentSave(msg.path, msg.document)
+  }
+
+  onDocumentSavedRef.current = (msg) => {
+    if (msg.ok) {
+      const savedContent = pendingSaveContentRef.current.get(msg.path)
+      if (savedContent !== undefined) {
+        lastSavedContentRef.current.set(msg.path, savedContent)
+        pendingSaveContentRef.current.delete(msg.path)
+      }
+      documentTabs.markSaved(msg.path, savedContent)
+    } else {
+      toastManager.add({
+        type: "error",
+        title: "自动保存失败",
+        description: msg.path,
+      })
+    }
+  }
+
   const handleSaveDocument = useCallback(() => {
-    const path = documentTabs.activePath
+    const path = activePathRef.current
     if (!path || path === SETTINGS_PATH) return
-    // Flush the editor's latest content (bypassing TipTap change debounce) so we
-    // never save stale text, then push it to the backend buffer and save to disk.
+    documentTabsRef.current?.cancelPendingChange()
     const latest =
-      documentEditorRef.current?.getMarkdown() ?? documentTabs.documentContent
+      documentEditorRef.current?.getMarkdown() ??
+      documentTabsRef.current?.documentContent ??
+      ""
     agent.sendDocumentChange(latest, path)
-    agent.saveDocument(path)
-  }, [
-    agent.sendDocumentChange,
-    agent.saveDocument,
-    documentTabs.activePath,
-    documentTabs.documentContent,
-  ])
+    requestDocumentSave(path, latest)
+  }, [agent.sendDocumentChange, requestDocumentSave])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== "s") return
+      e.preventDefault()
+      if (activePathRef.current === SETTINGS_PATH) return
+      handleSaveDocument()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [handleSaveDocument])
 
   const editHighlights = useMemo(() => {
     const path = documentTabs.activePath
@@ -182,7 +245,7 @@ export function Layout() {
       if (group.path !== path) continue
       if (!["proposed", "partially_applied", "stale"].includes(group.status)) continue
       for (const edit of group.edits) {
-        if (["applied", "deleted", "replaced", "rejected"].includes(edit.status)) continue
+        if (["applied", "dismissed"].includes(edit.status)) continue
         const text =
           edit.kind === "insert"
             ? edit.anchor.prefix_context || edit.new_text
@@ -243,6 +306,13 @@ export function Layout() {
     })
   }, [setFileOpenCallback, documentTabs.openFile])
 
+  // Reload clean tabs when files change on disk (VS Code behavior)
+  useEffect(() => {
+    setFileChangedCallback((path) => {
+      documentTabs.refreshFromDisk(path)
+    })
+  }, [setFileChangedCallback, documentTabs.refreshFromDisk])
+
   const isSettingsTab = documentTabs.activePath === SETTINGS_PATH
 
   useEffect(() => {
@@ -264,7 +334,6 @@ export function Layout() {
 
   const handleOpenModelsSettings = useCallback(() => {
     setSettingsSection("models")
-    setSettingsStartAddModel(true)
     if (explorerView == null) {
       setExplorerView(lastExplorerTabRef.current)
     }
@@ -273,10 +342,6 @@ export function Layout() {
 
   const handleSettingsSectionChange = useCallback((section: SettingsSection) => {
     setSettingsSection(section)
-  }, [])
-
-  const handleSettingsStartAddModelHandled = useCallback(() => {
-    setSettingsStartAddModel(false)
   }, [])
 
   const handleOpenFile = useCallback(
@@ -314,7 +379,7 @@ export function Layout() {
       const nextPath = pathJoin(pathDirname(path), nextName)
 
       try {
-        await workspace.renameFile(path, nextPath)
+        await getWorkspace().renameFile(path, nextPath)
         invalidateFileReadCache(path)
         await refreshFileTree()
         documentTabs.repathOpenTabs([{ from: path, to: nextPath }])
@@ -336,7 +401,7 @@ export function Layout() {
         })
       }
     },
-    [documentTabs, workspace, refreshFileTree, syncDocumentToAgent]
+    [documentTabs, getWorkspace, refreshFileTree, syncDocumentToAgent]
   )
 
   const handleMoveFiles = useCallback(
@@ -345,7 +410,7 @@ export function Layout() {
 
       try {
         for (const { from, to } of moves) {
-          await workspace.renameFile(from, to)
+          await getWorkspace().renameFile(from, to)
           invalidateFileReadCache(from)
         }
         await refreshFileTree()
@@ -379,12 +444,12 @@ export function Layout() {
         })
       }
     },
-    [documentTabs, workspace, refreshFileTree, syncDocumentToAgent]
+    [documentTabs, getWorkspace, refreshFileTree, syncDocumentToAgent]
   )
 
   const handleCopyFileFolderPath = useCallback(async (path: string) => {
     try {
-      const folderPath = await workspace.getFileFolderPath(path)
+      const folderPath = await getWorkspace().getFileFolderPath(path)
       await navigator.clipboard.writeText(folderPath)
       toastManager.add({
         type: "success",
@@ -398,7 +463,7 @@ export function Layout() {
         description: err instanceof Error ? err.message : "Could not copy path",
       })
     }
-  }, [workspace])
+  }, [getWorkspace])
 
   const handleExplorerTabChange = useCallback((view: ExplorerView) => {
     lastExplorerTabRef.current = view
@@ -424,7 +489,7 @@ export function Layout() {
     const nextPath = parentDir ? pathJoin(parentDir, baseName) : baseName
 
     try {
-      await workspace.writeFile(nextPath, "# New document\n")
+      await getWorkspace().writeFile(nextPath, "# New document\n")
       invalidateFileReadCache(nextPath)
       await refreshFileTree()
       void documentTabs.openFile(nextPath)
@@ -441,7 +506,7 @@ export function Layout() {
           err instanceof Error ? err.message : "Could not create file",
       })
     }
-  }, [documentTabs, fileTree, workspace, refreshFileTree])
+  }, [documentTabs, fileTree, getWorkspace, refreshFileTree])
 
   const handleCreateFolderIn = useCallback(async (parentDir: string) => {
     const folderPath = suggestNewFolderPath(fileTree, parentDir)
@@ -461,7 +526,7 @@ export function Layout() {
     const nextPath = parentDir ? pathJoin(parentDir, chosenName) : chosenName
 
     try {
-      await workspace.createFolder(nextPath)
+      await getWorkspace().createFolder(nextPath)
       await refreshFileTree()
       toastManager.add({
         type: "success",
@@ -476,7 +541,7 @@ export function Layout() {
           err instanceof Error ? err.message : "Could not create folder",
       })
     }
-  }, [fileTree, workspace, refreshFileTree])
+  }, [fileTree, getWorkspace, refreshFileTree])
 
   const handleOutlineNavigate = useCallback((id: string) => {
     documentEditorRef.current?.scrollToHeading(id)
@@ -484,7 +549,12 @@ export function Layout() {
 
   const handleOpenFileFolder = useCallback(async (path: string) => {
     try {
-      await workspace.openFileFolder(path)
+      const folderPath = await getWorkspace().openFileFolder(path)
+      toastManager.add({
+        type: "success",
+        title: "Opened in Explorer",
+        description: folderPath,
+      })
     } catch (err) {
       toastManager.add({
         type: "error",
@@ -493,17 +563,43 @@ export function Layout() {
           err instanceof Error ? err.message : "Could not open folder path",
       })
     }
-  }, [workspace])
+  }, [getWorkspace])
 
   const chatSessions = useChatSessions({
     messages: agent.messages,
     connectionState: agent.connectionState,
     backendSessions: agent.backendSessions,
+    sessionListLoaded: agent.sessionListLoaded,
     activeSessionId: agent.activeSessionId,
+    workspaceId: agent.activeWorkspaceId,
     createSession: agent.createSession,
     switchSession: agent.switchSession,
     setWelcomeMessage: agent.setWelcomeMessage,
   })
+
+  const handleAddEditToChat = useCallback(
+    (
+      group: { id: string; path: string },
+      edit: { id: string; old_text: string; new_text: string; kind: string },
+    ) => {
+      const snippet =
+        edit.old_text && edit.new_text
+          ? `${edit.old_text}\n→ ${edit.new_text}`
+          : edit.new_text || edit.old_text
+      if (!snippet.trim()) return
+      const attachment = makeEditReviewAttachment({
+        path: group.path,
+        groupId: group.id,
+        editId: edit.id,
+        summary: `[${edit.kind}] ${snippet.slice(0, 500)}`,
+      })
+      setChatAttachments((prev) =>
+        prev.some((a) => a.id === attachment.id) ? prev : [...prev, attachment],
+      )
+      chatSessions.setChatOpen(true)
+    },
+    [chatSessions.setChatOpen],
+  )
 
   useEffect(() => {
     const file = documentTabs.activePath ? pathBasename(documentTabs.activePath) : null
@@ -632,6 +728,9 @@ export function Layout() {
     agentThinking: agent.agentThinking,
     isStreaming: agent.isStreaming,
     connectionState: agent.connectionState,
+    agentError: agent.agentError,
+    onDismissAgentError: agent.clearAgentError,
+    modelsKnown: settings.config !== null,
     activeFilename: documentTabs.activePath
       ? pathBasename(documentTabs.activePath)
       : null,
@@ -646,11 +745,14 @@ export function Layout() {
     activeModelId: settings.config?.active ?? null,
     onSelectModel: settings.setActiveModel,
     onOpenModelsSettings: handleOpenModelsSettings,
+    autoReview: agent.autoReview,
+    onAutoReviewChange: agent.setAutoReviewEnabled,
     editGroups: agent.editGroups,
     onApplyGroup: agent.applyGroup,
-    onRejectGroup: agent.rejectGroup,
-    onDeleteGroup: agent.deleteGroup,
+    onDismissGroup: agent.dismissGroup,
+    onRejectEdit: agent.rejectEdit,
     onSelectEdit: handleSelectEdit,
+    onAddEditToChat: handleAddEditToChat,
     attachments: chatAttachments,
     onRemoveAttachment: handleRemoveAttachment,
     onClearAttachments: handleClearAttachments,
@@ -721,8 +823,6 @@ export function Layout() {
               documentContent={documentTabs.documentContent}
               documentLoading={documentTabs.documentLoading}
               settingsSection={settingsSection}
-              settingsStartAddModel={settingsStartAddModel}
-              onSettingsStartAddModelHandled={handleSettingsStartAddModelHandled}
               settingsConfig={settings.config}
               settingsTools={settings.tools}
               settingsPlugins={settings.plugins}
@@ -733,15 +833,15 @@ export function Layout() {
               onAddModel={settings.addModel}
               onUpdateModel={settings.updateModel}
               onRemoveModel={settings.removeModel}
-              onSetActiveModel={settings.setActiveModel}
               onSetToolEnabled={settings.setToolEnabled}
               onSetSubagentEnabled={settings.setSubagentEnabled}
               settingsMemory={settings.memory}
               settingsMemoryEnabled={settings.memoryEnabled}
               onSetMemoryEnabled={settings.setMemoryEnabled}
               onDeleteMemory={settings.deleteMemoryEntry}
+              onAcceptCandidatePrinciple={settings.acceptCandidatePrinciple}
+              onRejectCandidatePrinciple={settings.rejectCandidatePrinciple}
               onClearMemory={settings.clearMemory}
-              onSave={handleSaveDocument}
               editHighlights={editHighlights}
               onAddSelectionToChat={handleAddSelectionToChat}
             />

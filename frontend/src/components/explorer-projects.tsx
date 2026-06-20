@@ -204,7 +204,17 @@ export function ProjectSwitcherMenuContent({
   return (
     <>
       <MenuGroup>
-        <MenuItem className={shell.menuItem} onClick={onOpenFolder}>
+        <MenuItem
+          className={shell.menuItem}
+          closeOnClick
+          onPointerDown={(event) => {
+            if (event.button !== 0) return
+            onOpenFolder()
+          }}
+          onClick={(event) => {
+            event.preventDefault()
+          }}
+        >
           <OpenFolderRowContent />
         </MenuItem>
       </MenuGroup>

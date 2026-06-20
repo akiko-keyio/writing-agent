@@ -168,6 +168,8 @@ export const chatInset = contentInset
 export const treeIndent = {
   rowPadPx: 8,
   depthStepPx: 24,
+  /** Vertical gap between rows (= gap.xs / gap-1). */
+  rowGapPx: 4,
 } as const
 
 /** Compact card / list row padding (edit review, confirm bar). */

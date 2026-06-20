@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from "react"
+import { useCallback, useId, useState } from "react"
 
 import {
   Add01Icon,
@@ -51,7 +51,7 @@ import {
   sidebarMenuButtonVariants,
 } from "@/components/ui/sidebar"
 import { MenuTwoLineEntry } from "@/components/menu-two-line-entry"
-import { modelDisplayName as modelLabel } from "@/components/model-switcher-trigger"
+import { modelDisplayName, modelEndpointLabel } from "@/components/model-switcher-trigger"
 import { HugeiconsIcon } from "@/lib/icons"
 import { contentReadingColumnClass } from "@/lib/content-layout"
 import { shell } from "@/lib/shell-chrome"
@@ -67,21 +67,16 @@ import type {
   SettingsConfigData,
   ToolEntryData,
 } from "@/lib/agent-protocol"
+import { formatAgentToolLabel } from "@/lib/agent-tool-labels"
 
 /** Settings page — reading column + 32px inset; panels on the same page use stack.xl. */
 const settingsPageClass = cn(contentReadingColumnClass, p[8].all, stack.xl)
 
 /** List row Card (`rounded-lg` per Settings surfaces). */
-const settingsListCardClass =
-  "overflow-hidden rounded-lg before:rounded-[calc(var(--radius-lg)-1px)]"
+const settingsListCardClass = shell.browseListCard
 
 /** Section header actions — same size as row Edit / Open. */
 const settingsActionButtonClass = "shrink-0" as const
-
-function formatModelBasePreview(apiBase: string | undefined): string {
-  const trimmed = apiBase?.trim() ?? ""
-  return trimmed || "No base URL"
-}
 
 /** Sidebar item — each maps to its own content page. */
 export type SettingsSection =
@@ -102,19 +97,18 @@ interface SettingsContentProps {
   config: SettingsConfigData | null
   tools: ToolEntryData[] | null
   plugins: PluginsData | null
-  startAddModel?: boolean
-  onStartAddModelHandled?: () => void
   onOpenFile?: (path: string) => void
   onAddModel?: (model: Omit<ModelEntryData, "api_key_masked"> & { api_key?: string }) => void
   onUpdateModel?: (modelId: string, updates: Partial<ModelEntryData> & { api_key?: string }) => void
   onRemoveModel?: (modelId: string) => void
-  onSetActiveModel?: (modelId: string) => void
   onSetToolEnabled?: (toolId: string, enabled: boolean) => void
   onSetSubagentEnabled?: (name: string, enabled: boolean) => void
   memory?: MemoryData | null
   memoryEnabled?: boolean
   onSetMemoryEnabled?: (enabled: boolean) => void
   onDeleteMemory?: (id: string) => void
+  onAcceptCandidatePrinciple?: (id: string) => void
+  onRejectCandidatePrinciple?: (id: string) => void
   onClearMemory?: () => void
 }
 
@@ -223,19 +217,18 @@ export function SettingsContent({
   config,
   tools,
   plugins,
-  startAddModel = false,
-  onStartAddModelHandled,
   onOpenFile,
   onAddModel,
   onUpdateModel,
   onRemoveModel,
-  onSetActiveModel,
   onSetToolEnabled,
   onSetSubagentEnabled,
   memory,
   memoryEnabled = true,
   onSetMemoryEnabled,
   onDeleteMemory,
+  onAcceptCandidatePrinciple,
+  onRejectCandidatePrinciple,
   onClearMemory,
 }: SettingsContentProps) {
   return (
@@ -245,12 +238,9 @@ export function SettingsContent({
           {section === "models" ? (
             <ModelsPanel
               config={config}
-              startAdding={startAddModel}
-              onStartAddingHandled={onStartAddModelHandled}
               onAdd={onAddModel}
               onUpdate={onUpdateModel}
               onRemove={onRemoveModel}
-              onSetActive={onSetActiveModel}
             />
           ) : null}
           {section === "rules" ? (
@@ -275,6 +265,8 @@ export function SettingsContent({
               enabled={memoryEnabled}
               onSetEnabled={onSetMemoryEnabled}
               onDelete={onDeleteMemory}
+              onAcceptCandidate={onAcceptCandidatePrinciple}
+              onRejectCandidate={onRejectCandidatePrinciple}
               onClear={onClearMemory}
             />
           ) : null}
@@ -365,7 +357,7 @@ function SettingsToolSwitchRow({
           htmlFor={switchId}
           className={cn(shell.projectMenuLine, "cursor-pointer font-normal")}
         >
-          {tool.name}
+          {formatAgentToolLabel(tool.id)}
         </Label>
         <span className={shell.projectMenuLineMuted}>{tool.description}</span>
       </div>
@@ -430,68 +422,44 @@ type ModelDialogState =
 function SettingsModelRow({
   title,
   endpoint,
-  maskedKey,
-  active,
   onEdit,
   onDelete,
-  onSetActive,
 }: {
   title: string
   endpoint?: string
-  maskedKey?: string
-  active: boolean
   onEdit: () => void
   onDelete: () => void
-  onSetActive?: () => void
 }) {
-  const subtitleParts = [endpoint, maskedKey ? `key ${maskedKey}` : ""].filter(Boolean)
   return (
-    <Card className={settingsListCardClass}>
-      <div className={cn(row.md, "justify-between text-sm font-normal", p[4].all)}>
-        <MenuTwoLineEntry
-          title={title}
-          subtitle={subtitleParts.join("  ·  ")}
-          meta={
-            active ? (
-              <Badge variant="success" size="sm">
-                Active
-              </Badge>
-            ) : undefined
-          }
-        />
-        <div className={cn(row.sm, "shrink-0 items-center")}>
-          {!active && onSetActive ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={settingsActionButtonClass}
-              onClick={onSetActive}
-            >
-              Set active
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={settingsActionButtonClass}
-            onClick={onEdit}
-          >
-            Edit
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Delete"
-            onClick={onDelete}
-          >
-            <HugeiconsIcon icon={Delete01Icon} aria-hidden="true" />
-          </Button>
-        </div>
+    <div
+      className={cn(
+        row.md,
+        "justify-between border-b border-border text-sm font-normal last:border-b-0",
+        p[4].all,
+      )}
+    >
+      <MenuTwoLineEntry title={title} subtitle={endpoint} className="min-w-0 flex-1" />
+      <div className={cn(row.sm, "shrink-0 items-center")}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={settingsActionButtonClass}
+          onClick={onEdit}
+        >
+          Edit
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Delete"
+          onClick={onDelete}
+        >
+          <HugeiconsIcon icon={Delete01Icon} aria-hidden="true" />
+        </Button>
       </div>
-    </Card>
+    </div>
   )
 }
 
@@ -537,28 +505,16 @@ function ModelDialog({
 
 function ModelsPanel({
   config,
-  startAdding = false,
-  onStartAddingHandled,
   onAdd,
   onUpdate,
   onRemove,
-  onSetActive,
 }: {
   config: SettingsConfigData | null
-  startAdding?: boolean
-  onStartAddingHandled?: () => void
   onAdd?: (model: Omit<ModelEntryData, "api_key_masked"> & { api_key?: string }) => void
   onUpdate?: (modelId: string, updates: Partial<ModelEntryData> & { api_key?: string }) => void
   onRemove?: (modelId: string) => void
-  onSetActive?: (modelId: string) => void
 }) {
   const [dialogState, setDialogState] = useState<ModelDialogState | null>(null)
-
-  useEffect(() => {
-    if (!startAdding || !config) return
-    setDialogState({ mode: "add" })
-    onStartAddingHandled?.()
-  }, [startAdding, config, onStartAddingHandled])
 
   if (!config) {
     return (
@@ -571,6 +527,9 @@ function ModelsPanel({
       </div>
     )
   }
+
+  const persistedModels = config.models.filter((model) => model.readonly !== true)
+  const envFallback = config.models.find((model) => model.readonly === true)
 
   return (
     <div className={stack.lg}>
@@ -589,6 +548,15 @@ function ModelsPanel({
         }
       />
 
+      {envFallback && persistedModels.length === 0 ? (
+        <p className={cn(shell.textMuted, "max-w-prose text-sm")}>
+          Chat is using{" "}
+          <span className="text-foreground">{modelDisplayName(envFallback)}</span>{" "}
+          from <code className="font-mono text-xs">.env</code>. Add a model below to
+          save configuration in Settings.
+        </p>
+      ) : null}
+
       <ModelDialog
         open={dialogState != null}
         state={dialogState}
@@ -599,27 +567,24 @@ function ModelsPanel({
         onUpdate={onUpdate}
       />
 
-      {config.models.length === 0 ? (
+      {persistedModels.length === 0 ? (
         <EmptyState
           icon={Key01Icon}
           title="No models configured"
           description="Add a model to get started."
         />
       ) : (
-        <div className={stack.lg}>
-          {config.models.map((model) => (
+        <SettingsBrowseList>
+          {persistedModels.map((model) => (
             <SettingsModelRow
               key={model.id}
-              title={modelLabel(model)}
-              endpoint={formatModelBasePreview(model.api_base)}
-              maskedKey={model.api_key_masked}
-              active={model.id === config.active}
+              title={modelDisplayName(model)}
+              endpoint={modelEndpointLabel(model.api_base)}
               onEdit={() => setDialogState({ mode: "edit", model })}
               onDelete={() => onRemove?.(model.id)}
-              onSetActive={onSetActive ? () => onSetActive(model.id) : undefined}
             />
           ))}
-        </div>
+        </SettingsBrowseList>
       )}
     </div>
   )
@@ -642,9 +607,9 @@ function ModelForm({
   })
 
   const canSave =
-    draft.model.trim().length > 0 &&
-    draft.api_base.trim().length > 0 &&
-    (initial != null || draft.api_key.trim().length > 0)
+    draft.model.trim().length >= 2 &&
+    /^https?:\/\/.+/i.test(draft.api_base.trim()) &&
+    (initial != null || draft.api_key.trim().length >= 8)
 
   const handleSave = useCallback(() => {
     if (!canSave) return
@@ -843,22 +808,36 @@ function MemoryEntryRow({
   )
 }
 
+function isCandidatePrinciple(entry: MemoryEntry): boolean {
+  return entry.metadata?.status === "candidate"
+}
+
 function MemoryPanel({
   memory,
   enabled,
   onSetEnabled,
   onDelete,
+  onAcceptCandidate,
+  onRejectCandidate,
   onClear,
 }: {
   memory: MemoryData | null
   enabled: boolean
   onSetEnabled?: (enabled: boolean) => void
   onDelete?: (id: string) => void
+  onAcceptCandidate?: (id: string) => void
+  onRejectCandidate?: (id: string) => void
   onClear?: () => void
 }) {
-  const kinds: MemoryEntry["kind"][] = ["principle", "knowledge", "example"]
+  const candidates =
+    memory?.principle.filter((entry) => isCandidatePrinciple(entry)) ?? []
+  const activePrinciples =
+    memory?.principle.filter((entry) => !isCandidatePrinciple(entry)) ?? []
   const total = memory
-    ? memory.principle.length + memory.knowledge.length + memory.example.length
+    ? activePrinciples.length +
+      candidates.length +
+      memory.knowledge.length +
+      memory.example.length
     : 0
 
   return (
@@ -885,7 +864,7 @@ function MemoryPanel({
         <div className={cn(row.md, "justify-between text-sm font-normal", p[4].all)}>
           <MenuTwoLineEntry
             title="Enable memory"
-            subtitle="Record accepted, rejected, and replaced edits as examples."
+            subtitle="Record applied, dismissed, and refined edits as examples."
           />
           {onSetEnabled ? (
             <Switch
@@ -901,21 +880,81 @@ function MemoryPanel({
         <EmptyState
           icon={BrainIcon}
           title="No memory yet"
-          description="Apply, reject, or refine a suggested edit and it will be recorded here."
+          description="Apply, dismiss, or refine a suggested edit and it will be recorded here."
         />
       ) : (
-        kinds
-          .filter((kind) => memory[kind].length > 0)
-          .map((kind) => (
-            <div key={kind} className={stack.sm}>
-              <SectionHeader title={MEMORY_KIND_LABELS[kind]} />
+        <>
+          {candidates.length > 0 ? (
+            <div className={stack.sm}>
+              <SectionHeader title="Suggested principles" />
               <SettingsBrowseList>
-                {memory[kind].map((entry) => (
+                {candidates.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className={cn(
+                      row.md,
+                      "justify-between border-b border-border text-sm font-normal last:border-b-0",
+                      p[4].all,
+                    )}
+                  >
+                    <MenuTwoLineEntry
+                      title={entry.content || "(empty)"}
+                      subtitle={
+                        typeof entry.metadata?.rationale === "string"
+                          ? entry.metadata.rationale
+                          : "Awaiting your confirmation"
+                      }
+                    />
+                    <div className={cn(row.sm, "shrink-0")}>
+                      {onAcceptCandidate ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onAcceptCandidate(entry.id)}
+                        >
+                          Accept
+                        </Button>
+                      ) : null}
+                      {onRejectCandidate ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onRejectCandidate(entry.id)}
+                        >
+                          Reject
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </SettingsBrowseList>
+            </div>
+          ) : null}
+          {(["knowledge", "example"] as const)
+            .filter((kind) => (memory[kind]?.length ?? 0) > 0)
+            .map((kind) => (
+              <div key={kind} className={stack.sm}>
+                <SectionHeader title={MEMORY_KIND_LABELS[kind]} />
+                <SettingsBrowseList>
+                  {memory[kind].map((entry) => (
+                    <MemoryEntryRow key={entry.id} entry={entry} onDelete={onDelete} />
+                  ))}
+                </SettingsBrowseList>
+              </div>
+            ))}
+          {activePrinciples.length > 0 ? (
+            <div className={stack.sm}>
+              <SectionHeader title={MEMORY_KIND_LABELS.principle} />
+              <SettingsBrowseList>
+                {activePrinciples.map((entry) => (
                   <MemoryEntryRow key={entry.id} entry={entry} onDelete={onDelete} />
                 ))}
               </SettingsBrowseList>
             </div>
-          ))
+          ) : null}
+        </>
       )}
     </div>
   )
@@ -947,7 +986,7 @@ function SubagentsPanel({
             return (
               <SettingsBrowseRow
                 key={agent.id}
-                title={agent.name}
+                title={formatAgentToolLabel(agent.name)}
                 subtitle={agent.description}
                 meta={
                   <div className={cn(row.sm, "flex-wrap items-center")}>
@@ -962,7 +1001,7 @@ function SubagentsPanel({
                         onCheckedChange={(checked) =>
                           onSetSubagentEnabled(agent.name, checked)
                         }
-                        aria-label={`Enable ${agent.name}`}
+                        aria-label={`Enable ${formatAgentToolLabel(agent.name)}`}
                       />
                     ) : null}
                   </div>

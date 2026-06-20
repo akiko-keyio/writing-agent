@@ -79,6 +79,13 @@ export function explorerTreeRowHeightPx(
   return EXPLORER_TREE_ROW_HEIGHT_PX[density]
 }
 
+/** Pierre 虚拟列表 stride = 可视行高 + 行间 gap（须与 unsafeCss margin-bottom 一致） */
+export function explorerTreeRowStridePx(
+  density: ExplorerTreeRowDensity
+): number {
+  return EXPLORER_TREE_ROW_HEIGHT_PX[density] + treeIndent.rowGapPx
+}
+
 export function explorerTreeRowHeightClass(
   density: ExplorerTreeRowDensity
 ): string {

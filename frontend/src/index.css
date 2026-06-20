@@ -34,6 +34,7 @@
 @theme inline {
     --font-sans: "Cal Sans UI", "MiSans VF", ui-sans-serif, system-ui, sans-serif;
     --font-heading: "Cal Sans UI", "MiSans VF", ui-sans-serif, system-ui, sans-serif;
+    --font-serif: "Times New Roman", "Noto Serif SC", "Source Han Serif SC", ui-serif, Georgia, Cambria, serif;
     --font-mono: "Geist Mono Variable", ui-monospace, monospace;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
@@ -171,6 +172,7 @@
 :root {
     --font-sans: "Cal Sans UI", "MiSans VF", ui-sans-serif, system-ui, sans-serif;
     --font-heading: var(--font-sans);
+    --font-serif: "Times New Roman", "Noto Serif SC", "Source Han Serif SC", ui-serif, Georgia, Cambria, serif;
     --font-mono: "Geist Mono Variable", ui-monospace, monospace;
     /* Chat markdown — Cal Sans + MiSans VF both support continuous wght */
     --chat-font-weight-body: 400;
@@ -334,6 +336,10 @@
     --chrome-row-fade-end: var(--sidebar-item-selected);
   }
 
+  .chrome-row-hover-fade-overlay-bg--background {
+    --chrome-row-fade-end: var(--background);
+  }
+
   /* Proposed edit-group anchors highlighted in the document editor. */
   .edit-anchor {
     background-color: color-mix(in srgb, var(--warning) 20%, transparent);
@@ -347,5 +353,12 @@
     text-decoration: line-through;
     text-decoration-color: var(--muted-foreground);
     box-shadow: none;
+  }
+
+  /* Document body — no browser spell/grammar wavy underlines. */
+  .document-editor ::spelling-error,
+  .document-editor ::grammar-error {
+    text-decoration: none;
+    background: none;
   }
 }

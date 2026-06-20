@@ -5,7 +5,7 @@ import {
   type KeyboardEvent,
 } from "react"
 
-import { ArrowUp02Icon, StopIcon } from "@hugeicons/core-free-icons"
+import { ArrowUp02Icon, BookOpenCheckIcon, Cancel01Icon, StopIcon } from "@hugeicons/core-free-icons"
 
 import { ChromePanelScroll } from "@/components/chrome-scroll-area"
 import { ModelSwitcherTrigger } from "@/components/model-switcher-trigger"
@@ -18,6 +18,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import type { ModelEntryData } from "@/lib/agent-protocol"
+import type { ChatAttachment } from "@/lib/chat-attachments"
+import { attachmentMentionLabel } from "@/lib/chat-attachments"
 import { HugeiconsIcon } from "@/lib/icons"
 import { shell } from "@/lib/shell-chrome"
 import { gap, p, row } from "@/lib/spacing"
@@ -31,15 +33,37 @@ const COMPOSER_SHELL_CLASS = cn(
 
 type ComposerFooterVariant = "full" | "send-only"
 
-/** Single Agent mode: a static status label, not a selector. */
-function ComposerAgentStatus() {
+function ComposerAutoReviewToggle({
+  pressed,
+  onPressedChange,
+  disabled,
+}: {
+  pressed: boolean
+  onPressedChange: (pressed: boolean) => void
+  disabled?: boolean
+}) {
+  const label = pressed ? "Auto Review on" : "Auto Review"
+
   return (
-    <span
-      className={cn(shell.composerMenuTrigger, "cursor-default text-muted-foreground")}
-      aria-label="Agent mode"
-    >
-      Agent
-    </span>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-pressed={pressed}
+            aria-label={label}
+            disabled={disabled}
+            data-pressed={pressed ? "" : undefined}
+            onClick={() => onPressedChange(!pressed)}
+          >
+            <HugeiconsIcon icon={BookOpenCheckIcon} aria-hidden="true" />
+          </Button>
+        }
+      />
+      <TooltipPopup side="top">{label}</TooltipPopup>
+    </Tooltip>
   )
 }
 
@@ -65,7 +89,7 @@ function ComposerSendButton({
               type="button"
               size="icon-sm"
               variant="default"
-              className={shell.chatChipRadius}
+              className={shell.chatSendButton}
               aria-label="Stop generating"
               onClick={() => onStop?.()}
             >
@@ -117,7 +141,11 @@ export type ChatComposerProps = {
   activeModelId: string | null
   onSelectModel: (modelId: string) => void
   onOpenModelsSettings?: () => void
+  autoReview?: boolean
+  onAutoReviewChange?: (enabled: boolean) => void
   autoFocus?: boolean
+  attachments?: ChatAttachment[]
+  onRemoveAttachment?: (id: string) => void
   className?: string
 }
 
@@ -137,7 +165,11 @@ export const ChatComposer = forwardRef<HTMLDivElement, ChatComposerProps>(
       activeModelId,
       onSelectModel,
       onOpenModelsSettings,
+      autoReview = false,
+      onAutoReviewChange,
       autoFocus = false,
+      attachments = [],
+      onRemoveAttachment,
       className,
     },
     ref,
@@ -153,8 +185,6 @@ export const ChatComposer = forwardRef<HTMLDivElement, ChatComposerProps>(
       },
       [onSubmit, value, isStreaming],
     )
-
-    const inputDisabled = disabled || isStreaming
 
     return (
       <div
@@ -173,8 +203,47 @@ export const ChatComposer = forwardRef<HTMLDivElement, ChatComposerProps>(
           }
         }}
       >
+        {attachments.length > 0 ? (
+          <div
+            className={cn("flex flex-wrap", gap.sm, shell.composerAttachmentInset)}
+          >
+            {attachments.map((att) => (
+              <Button
+                key={att.id}
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={cn(shell.composerMenuTrigger, shell.composerAttachmentChip)}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="min-w-0 truncate">{attachmentMentionLabel(att)}</span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Remove ${attachmentMentionLabel(att)}`}
+                  className="inline-flex shrink-0 opacity-70 hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onRemoveAttachment?.(att.id)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" && e.key !== " ") return
+                    e.stopPropagation()
+                    e.preventDefault()
+                    onRemoveAttachment?.(att.id)
+                  }}
+                >
+                  <HugeiconsIcon icon={Cancel01Icon} aria-hidden="true" className="size-3.5" />
+                </span>
+              </Button>
+            ))}
+          </div>
+        ) : null}
         <ChromePanelScroll
-          className="relative max-h-40 w-full shrink-0"
+          className={cn(
+            "relative max-h-40 w-full shrink-0",
+            shell.chatComposerInsetX,
+          )}
           scrollFade={false}
         >
           <Textarea
@@ -182,14 +251,14 @@ export const ChatComposer = forwardRef<HTMLDivElement, ChatComposerProps>(
             aria-label="Message input"
             placeholder={placeholder}
             value={value}
-            disabled={inputDisabled}
+            disabled={disabled}
             autoFocus={autoFocus}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             className={cn(
               "block min-h-11 w-full resize-none border-0 bg-transparent text-sm leading-5 font-normal text-foreground shadow-none outline-none placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent",
-              p[0].all,
-              shell.chatBoxTextInset,
+              p[0].x,
+              attachments.length > 0 ? cn(p[2].top, p[3].bottom) : p[3].y,
             )}
           />
         </ChromePanelScroll>
@@ -200,26 +269,28 @@ export const ChatComposer = forwardRef<HTMLDivElement, ChatComposerProps>(
             row.sm,
             "w-full shrink-0",
             footerVariant === "full" ? "justify-between" : "justify-end",
-            p[1].top,
-            p[2].x,
-            p[2].bottom,
+            shell.chatPromptActionsInset,
           )}
         >
           {footerVariant === "full" ? (
             <>
-              <ComposerAgentStatus />
+              <ComposerAutoReviewToggle
+                pressed={autoReview}
+                onPressedChange={(next) => onAutoReviewChange?.(next)}
+                disabled={disabled}
+              />
               <div className={cn(row.sm, "shrink-0")}>
                 <ModelSwitcherTrigger
                   models={models}
                   activeModelId={activeModelId}
                   onSelectModel={onSelectModel}
                   onOpenModelsSettings={onOpenModelsSettings}
-                  disabled={inputDisabled}
+                  disabled={disabled}
                   variant="composer"
                 />
                 <ComposerSendButton
                   canSend={canSend}
-                  disabled={inputDisabled}
+                  disabled={disabled}
                   isStreaming={isStreaming}
                   onSend={() => onSubmit(value)}
                   onStop={onStop}
@@ -229,7 +300,7 @@ export const ChatComposer = forwardRef<HTMLDivElement, ChatComposerProps>(
           ) : (
             <ComposerSendButton
               canSend={canSend}
-              disabled={inputDisabled}
+              disabled={disabled}
               isStreaming={isStreaming}
               onSend={() => onSubmit(value)}
               onStop={onStop}

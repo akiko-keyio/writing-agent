@@ -137,6 +137,13 @@
  * Hanging indent without list-style-position:outside — outside markers sit in the
  * margin box and get clipped by Thread viewport overflow-x:hidden.
  */
+[data-slot="message-markdown"],
+[data-slot="reasoning-markdown"] {
+  --chat-ul-marker-width: 1.25rem;
+  /* tabular "99." at text-sm; 1.25rem clips 10+ */
+  --chat-ol-marker-width: 2.25rem;
+}
+
 [data-slot="message-markdown"] [data-streamdown="ordered-list"],
 [data-slot="reasoning-markdown"] [data-streamdown="ordered-list"],
 [data-slot="message-markdown"] [data-streamdown="unordered-list"],
@@ -149,15 +156,24 @@
 [data-slot="message-markdown"] [data-streamdown="list-item"],
 [data-slot="reasoning-markdown"] [data-streamdown="list-item"] {
   position: relative;
-  padding-inline-start: 1.25rem !important;
   padding-block: 0.125rem;
+}
+
+[data-slot="message-markdown"] [data-streamdown="unordered-list"] > [data-streamdown="list-item"],
+[data-slot="reasoning-markdown"] [data-streamdown="unordered-list"] > [data-streamdown="list-item"] {
+  padding-inline-start: var(--chat-ul-marker-width) !important;
+}
+
+[data-slot="message-markdown"] [data-streamdown="ordered-list"] > [data-streamdown="list-item"],
+[data-slot="reasoning-markdown"] [data-streamdown="ordered-list"] > [data-streamdown="list-item"] {
+  padding-inline-start: var(--chat-ol-marker-width) !important;
 }
 
 [data-slot="message-markdown"] [data-streamdown="unordered-list"] > [data-streamdown="list-item"]::before {
   content: "•";
   position: absolute;
   inset-inline-start: 0;
-  width: 1.25rem;
+  width: var(--chat-ul-marker-width);
   text-align: center;
   color: var(--foreground);
 }
@@ -166,7 +182,7 @@
   content: "•";
   position: absolute;
   inset-inline-start: 0;
-  width: 1.25rem;
+  width: var(--chat-ul-marker-width);
   text-align: center;
   color: currentColor;
 }
@@ -185,9 +201,11 @@
   content: counter(chat-md-ol) ".";
   position: absolute;
   inset-inline-start: 0;
-  width: 1.25rem;
+  width: var(--chat-ol-marker-width);
   text-align: end;
   padding-inline-end: 0.25rem;
+  box-sizing: border-box;
+  white-space: nowrap;
   color: var(--foreground);
   font-variant-numeric: tabular-nums;
 }
@@ -196,9 +214,11 @@
   content: counter(chat-md-ol) ".";
   position: absolute;
   inset-inline-start: 0;
-  width: 1.25rem;
+  width: var(--chat-ol-marker-width);
   text-align: end;
   padding-inline-end: 0.25rem;
+  box-sizing: border-box;
+  white-space: nowrap;
   color: currentColor;
   font-variant-numeric: tabular-nums;
 }
@@ -355,6 +375,12 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
+}
+
+[data-slot="thread-content"] [data-slot="chrome-inline-scroll"] pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 [data-slot="message-markdown"] [data-streamdown="table"],

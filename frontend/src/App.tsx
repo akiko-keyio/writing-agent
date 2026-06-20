@@ -9,6 +9,7 @@ import { DevUiGallery } from "@/pages/dev-ui-gallery"
 import { ChatComposerDesignOptionsPage } from "@/pages/chat-composer-design-options"
 import { SettingsDesignOptionsPage } from "@/pages/settings-design-options"
 import { SettingsInspectorMockupPage } from "@/pages/settings-inspector-mockup"
+import { ReviewQueueDesignMockupPage } from "@/pages/review-queue-design-mockup"
 
 /** Normalize pathname; tolerate trailing junk from pasted markdown links (e.g. `）`). */
 function routePath(): string {
@@ -55,6 +56,10 @@ function isChatComposerDesignOptionsRoute(): boolean {
   return matchesRoute("/chat-composer-design-options")
 }
 
+function isReviewQueueDesignMockupRoute(): boolean {
+  return matchesRoute("/review-queue-design-mockup")
+}
+
 export default function App() {
   const showDevGallery = isDevUiGalleryRoute()
   const showDesignSpec = isDesignSpecRoute()
@@ -72,6 +77,8 @@ export default function App() {
     content = <SettingsDesignOptionsPage />
   } else if (isSettingsInspectorMockupRoute()) {
     content = <SettingsInspectorMockupPage />
+  } else if (isReviewQueueDesignMockupRoute()) {
+    content = <ReviewQueueDesignMockupPage />
   } else if (showCossZAxis) {
     content = <CossZAxisPage />
   } else if (showCossDesignSystem) {

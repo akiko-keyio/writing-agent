@@ -14,6 +14,7 @@ import type { DocumentTocEntry } from "@/lib/document-toc"
 import {
   prefetchFileRead,
   readFileCached,
+  invalidateFileReadCache,
 } from "@/lib/file-read-cache"
 import { toastManager } from "@/components/ui/toast"
 
@@ -58,10 +59,11 @@ export function useDocumentTabs({
 
       const existing = tabs.find((t) => t.path === path)
       if (existing) {
+        // Commit activePath + content together so the editor never renders the
+        // new path with the previous document's content (which autosave would
+        // then persist to the wrong file).
         setActivePath(path)
-        startTransition(() => {
-          setDocumentContent(existing.content)
-        })
+        setDocumentContent(existing.content)
         setDocumentLoading(false)
         // Non-file tabs (settings, etc.) must not trigger document/open
         if (!isVirtualTab(existing) && !skipNextDocumentOpenRef.current) {
@@ -96,8 +98,12 @@ export function useDocumentTabs({
         const content = await readFileCached(path, workspace.readFile)
         if (requestId !== openRequestIdRef.current) return
 
+        // Content must be committed urgently (not in a transition) so it lands
+        // in the same commit as setDocumentLoading(false); otherwise the editor
+        // can mount for the new path while documentContent still holds the
+        // previous document, and autosave would persist that to the wrong file.
+        setDocumentContent(content)
         startTransition(() => {
-          setDocumentContent(content)
           setTabs((prev) => upsertTab(prev, path, content))
         })
         onDocumentOpen?.(content, path)
@@ -132,12 +138,15 @@ export function useDocumentTabs({
         clearTimeout(changeDebounceRef.current)
       }
       changeDebounceRef.current = setTimeout(() => {
+        const activeTab = tabsRef.current.find((tab) => tab.path === activePath)
+        if (!activeTab) return
+        // Only propagate changes the user actually made. TipTap may re-serialize
+        // markdown on mount with harmless formatting differences; comparing
+        // against the tab baseline avoids spurious dirty state and autosaves.
+        if (markdown === activeTab.content) return
+
         setDocumentContent(markdown)
-        setTabs((prev) => {
-          const activeTab = prev.find((tab) => tab.path === activePath)
-          const dirty = activeTab ? markdown !== activeTab.content : true
-          return updateTabContent(prev, activePath, markdown, dirty)
-        })
+        setTabs((prev) => updateTabContent(prev, activePath, markdown, true))
         onDocumentChange?.(markdown, activePath)
       }, DOCUMENT_CHANGE_DEBOUNCE_MS)
     },
@@ -166,9 +175,47 @@ export function useDocumentTabs({
   )
 
   /** Mark a tab clean after a successful disk save. */
-  const markSaved = useCallback((path: string) => {
-    setTabs((prev) => markTabDirty(prev, path, false))
+  const markSaved = useCallback((path: string, content?: string) => {
+    setTabs((prev) =>
+      content != null
+        ? prev.map((t) =>
+            t.path === path ? { ...t, content, dirty: false } : t,
+          )
+        : markTabDirty(prev, path, false),
+    )
   }, [])
+
+  /** Cancel any pending debounced change (e.g. before an immediate save). */
+  const cancelPendingChange = useCallback(() => {
+    if (changeDebounceRef.current) {
+      clearTimeout(changeDebounceRef.current)
+      changeDebounceRef.current = null
+    }
+  }, [])
+
+  /**
+   * Reload a file from disk if its tab is clean (not dirty).
+   * Called when the Vite file watcher detects an external change.
+   * Follows VS Code convention: clean buffer → silent reload; dirty → no-op.
+   */
+  const refreshFromDisk = useCallback(
+    (filePath: string) => {
+      const tab = tabsRef.current.find((t) => t.path === filePath)
+      if (!tab || isVirtualTab(tab) || tab.dirty) return
+
+      invalidateFileReadCache(filePath)
+      void workspace.readFile(filePath).then((content) => {
+        if (content === tab.content) return
+        setTabs((prev) => updateTabContent(prev, filePath, content, false))
+        if (filePath === activePath) {
+          skipNextDocumentOpenRef.current = true
+          setDocumentContent(content)
+          onDocumentOpen?.(content, filePath)
+        }
+      })
+    },
+    [activePath, workspace, onDocumentOpen],
+  )
 
   const handleCloseTab = useCallback(
     (path: string) => {
@@ -223,6 +270,8 @@ export function useDocumentTabs({
     repathOpenTabs,
     applyExternalContent,
     markSaved,
+    cancelPendingChange,
+    refreshFromDisk,
     skipNextDocumentOpenRef,
   }
 }

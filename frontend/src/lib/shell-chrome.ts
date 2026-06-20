@@ -107,6 +107,9 @@ const chromeRowHoverSurface = cn(
 const chromeRowHoverSurfaceActive =
   "bg-sidebar-accent text-sidebar-accent-foreground [&_svg]:text-sidebar-accent-foreground"
 
+/** Chat 车道浮层 — Composer / 用户气泡 / Review dock 共用 3xl 外壳。 */
+const chatLaneShellRadius = "rounded-3xl"
+
 export const shell = {
   text: "text-sm leading-5 text-foreground",
   textMuted: "text-sm leading-5 text-muted-foreground",
@@ -190,6 +193,14 @@ export const shell = {
   sidebarMenuItemHoverActions,
 
   menuItem: "text-sm font-normal sm:text-sm",
+
+  /** MenuRadioItem — checked session/model rows (grid + accent when selected). */
+  menuRadioItem: cn(
+    "text-sm font-normal sm:text-sm",
+    "min-w-0 max-w-full grid-cols-[.75rem_minmax(0,1fr)]",
+    "data-checked:bg-accent data-checked:text-accent-foreground",
+    "[&>span.col-start-2]:min-w-0 [&>span.col-start-2]:truncate",
+  ),
 
   projectMenuItem: cn("h-auto min-h-0 sm:min-h-0", p[1].y, "sm:py-1"),
   /** 两行条目：图标与首行标题同一行；副标题缩进 = size-4 图标 + gap.sm */
@@ -304,33 +315,75 @@ export const shell = {
   documentOutlineAside:
     "hidden min-h-0 w-60 shrink-0 border-e border-border bg-background 2xl:flex",
 
-  chatRadius: "rounded-3xl",
-  /** Card inner text — 16px horizontal; py-3 so leading-5 + 2×12 = 44 = 2×radius-3xl (matches user bubble). */
-  chatBoxTextInset: cn("px-[var(--content-inset-box)]", p[3].y),
+  chatRadius: chatLaneShellRadius,
+  /** Composer text inset — matches `chatUserBubble` horizontal padding. */
+  chatComposerInsetX: "px-[var(--content-inset-box)]",
   chatPromptInsetX: "px-[var(--radius-2xl)]",
-  /** Send row — 12px from bottom/right corner; 4px above actions. */
-  chatPromptActionsInset: cn(p[1].top, p[3].bottom, p[3].end),
-  /** Primary send — circle only (docs/ui.md 例外). */
-  chatSendButton: "rounded-full",
+  /** Send row — 28px icon-sm controls + p[2] vertical (= 44px row). Text panel: p[4]+leading-5+p[2] = 44. */
+  chatPromptActionsInset: p[2].all,
+  /** Primary send — circle (Composer + compact inputs). */
+  chatSendButton: "rounded-full before:rounded-full",
   /** Composer footer — Ask / model switcher pill triggers */
   composerMenuTrigger: cn(
     "max-w-[min(100%,14rem)] min-w-0 shrink rounded-full font-normal before:rounded-full",
   ),
+  /** Attachment chips — same pill as composerMenuTrigger + muted fill */
+  composerAttachmentChip: cn(
+    "max-w-full shrink bg-muted/80 hover:bg-muted data-pressed:bg-muted",
+  ),
+  /** Attachment row — half box inset at top-left (was p[4] + full box inset) */
+  composerAttachmentInset: cn(
+    p[2].top,
+    "ps-[calc(var(--content-inset-box)/2)]",
+    "pe-[var(--content-inset-box)]",
+  ),
   chatChipRadius: "rounded-lg",
+
+  chatLaneShellRadius,
+
+  /** Settings browse lists — rounded-lg card shell. */
+  browseListCard: cn(
+    "overflow-hidden rounded-lg before:rounded-[calc(var(--radius-lg)-1px)]",
+  ),
+  /** Review queue — chat lane family (see chatLaneShellRadius). */
+  reviewQueueFrame: chatLaneShellRadius,
+  /** Review diff panel — lg (Settings browse parity). */
+  reviewQueuePanel: cn(
+    "rounded-lg before:rounded-[calc(var(--radius-lg)-1px)]",
+  ),
+
   /** User bubble + PromptInput — Card surface (bg-card + shadow-xs/5 + inner highlight) */
   chatComposerChrome: cn(
     "w-full max-w-full min-w-0 border border-input bg-card not-dark:bg-clip-padding",
-    "rounded-3xl shadow-xs/5",
+    chatLaneShellRadius,
+    "shadow-xs/5",
     "relative before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-3xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]"
   ),
   /** leading-5 (20px) + 2×py-3 (24px) = 2×radius-3xl (44px) for single-line bubbles */
   chatUserBubble: cn(
     "w-full max-w-full min-w-0 border border-input bg-card not-dark:bg-clip-padding text-sm leading-5",
-    "rounded-3xl shadow-xs/5",
+    chatLaneShellRadius,
+    "shadow-xs/5",
     "relative before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-3xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
     "px-[var(--content-inset-box)]",
     p[3].y,
   ),
+  /** User bubble click — same feedback as coss Button outline (Save). */
+  chatUserBubbleInteractive: cn(
+    "cursor-pointer outline-none transition-shadow",
+    "hover:bg-accent/50 active:bg-accent/50",
+    "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+    "active:shadow-none active:before:shadow-none",
+    "dark:hover:bg-input/64 dark:active:bg-input/64",
+  ),
+  /** Review Queue edit row — outline Button hover/press (scroll-to-anchor affordance). */
+  reviewQueueRowInteractive: cn(
+    "cursor-pointer outline-none transition-shadow",
+    "hover:bg-accent/50 active:bg-accent/50",
+    "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+    "dark:hover:bg-input/64 dark:active:bg-input/64",
+  ),
+  reviewQueueRowSelected: "bg-accent/50 dark:bg-input/64",
   /** Assistant copy — right edge aligns with prose lane (`--content-inset-text`); show on message hover. */
   chatMessageCopyAction: cn(
     "self-end shrink-0 opacity-0 transition-opacity",

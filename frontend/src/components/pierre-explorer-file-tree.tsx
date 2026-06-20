@@ -14,7 +14,10 @@ import {
   buildPierreTreeShellStyle,
   buildPierreTreeUnsafeCss,
 } from "@/components/explorer-variants/file-tree/pierre-tree-shell-theme"
-import { EXPLORER_TREE_ROW_HEIGHT_PX } from "@/lib/explorer-tree-row-density"
+import {
+  EXPLORER_TREE_ROW_HEIGHT_PX,
+  explorerTreeRowStridePx,
+} from "@/lib/explorer-tree-row-density"
 import {
   collectAncestorDirectoryPaths,
   collectDirectoryPathsFromFilePaths,
@@ -25,7 +28,10 @@ import { pathBasename, pathJoin } from "@/lib/path"
 import { shell } from "@/lib/shell-chrome"
 import { cn } from "@/lib/utils"
 
-const PIERRE_TREE_ROW_HEIGHT_PX = EXPLORER_TREE_ROW_HEIGHT_PX.compact
+const PIERRE_TREE_ROW_DENSITY = "compact" as const
+const PIERRE_TREE_ROW_HEIGHT_PX =
+  EXPLORER_TREE_ROW_HEIGHT_PX[PIERRE_TREE_ROW_DENSITY]
+const PIERRE_TREE_ROW_STRIDE_PX = explorerTreeRowStridePx(PIERRE_TREE_ROW_DENSITY)
 
 export type PierreExplorerFileTreeProps = ExplorerRowMenuActions & {
   tree: WorkspaceFileNode[]
@@ -116,9 +122,19 @@ function PierreExplorerTreeModel({
   containerHeightPx: number
 }) {
   const paths = useMemo(() => collectWorkspacePaths(tree), [tree])
+  const markdownFilePathSet = useMemo(
+    () => new Set(paths.filter(isMarkdownFilePath)),
+    [paths]
+  )
 
   const onMoveFilesRef = useRef(onMoveFiles)
   onMoveFilesRef.current = onMoveFiles
+
+  const onOpenFileRef = useRef(onOpenFile)
+  onOpenFileRef.current = onOpenFile
+
+  const activePathRef = useRef(activePath)
+  activePathRef.current = activePath
 
   const menuActions = useMemo(
     (): ExplorerRowMenuActions => ({
@@ -163,15 +179,30 @@ function PierreExplorerTreeModel({
     []
   )
 
+  const handleSelectionChange = useCallback(
+    (selectedPaths: readonly string[]) => {
+      const last = selectedPaths[selectedPaths.length - 1]
+      if (
+        last &&
+        markdownFilePathSet.has(last) &&
+        last !== activePathRef.current
+      ) {
+        onOpenFileRef.current(last)
+      }
+    },
+    [markdownFilePathSet]
+  )
+
   const pathsKey = paths.join("\n")
   const { model } = useFileTree({
     paths,
     search: false,
     flattenEmptyDirectories: false,
     initialExpansion: 1,
-    itemHeight: PIERRE_TREE_ROW_HEIGHT_PX,
+    itemHeight: PIERRE_TREE_ROW_STRIDE_PX,
     icons: PIERRE_COSS_FILE_TREE_ICONS,
-    unsafeCSS: buildPierreTreeUnsafeCss(),
+    onSelectionChange: handleSelectionChange,
+    unsafeCSS: buildPierreTreeUnsafeCss(PIERRE_TREE_ROW_HEIGHT_PX),
     dragAndDrop: {
       canDrag: (draggedPaths) =>
         draggedPaths.every((path) => isMarkdownFilePath(path)),

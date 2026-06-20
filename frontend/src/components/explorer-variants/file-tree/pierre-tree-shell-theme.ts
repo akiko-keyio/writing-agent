@@ -15,8 +15,6 @@ const ROW_HOVER_BG =
 const ROW_SELECTED_BG =
   "color-mix(in srgb, var(--input) 64%, var(--sidebar))"
 
-const ROW_GAP_PX = 8
-
 /**
  * Pierre 行尾 padding（action lane 20px 之外，仅 end-1 对齐 ⋯ trigger）。
  */
@@ -40,7 +38,7 @@ export function buildPierreTreeShellStyle(
     backgroundColor: "transparent",
 
     "--trees-item-height": `${rowHeightPx}px`,
-    "--trees-item-row-gap-override": `${ROW_GAP_PX}px`,
+    "--trees-item-row-gap-override": `${treeIndent.rowGapPx}px`,
     /** 缩进由 aria-level unsafeCss 承担；行尾 action lane 单独占位 */
     "--trees-item-padding-x-override": "0px",
     "--trees-item-margin-x-override": "0px",
@@ -78,6 +76,22 @@ export function buildPierreTreeShellStyle(
   } as CSSProperties
 }
 
+/**
+ * Pierre 虚拟列表用 itemHeight 作 scroll stride；行间 gap 须靠 margin-bottom，
+ * 并令 stride = rowHeight + gap（见 explorerTreeRowStridePx）。
+ */
+function buildRowGapRules(rowHeightPx: number, rowGapPx: number): string {
+  return `
+  [data-file-tree-virtualized-sticky='true'] [data-type='item'],
+  [data-file-tree-sticky-overlay-content='true'] [data-type='item'] {
+    height: ${rowHeightPx}px !important;
+    min-height: ${rowHeightPx}px !important;
+    flex: 0 0 ${rowHeightPx}px !important;
+    margin-bottom: ${rowGapPx}px !important;
+  }
+  `.trim()
+}
+
 /** aria-level 缩进：隐藏 Pierre spacing 段，用 padding-inline-start 对齐 COSS 树 */
 function buildLevelPaddingRules(): string {
   const { depthStepPx, rowPadPx } = treeIndent
@@ -99,12 +113,16 @@ function buildLevelPaddingRules(): string {
 /**
  * 无法用 host CSS 变量表达的部分：layout、Hugeicons stroke、chevron、content 宽度。
  */
-export function buildPierreTreeUnsafeCss(): string {
+export function buildPierreTreeUnsafeCss(rowHeightPx: number): string {
+  const { rowGapPx } = treeIndent
+
   return `
   [data-item-section='spacing'],
   [data-item-section='spacing-item'] {
     display: none !important;
   }
+
+  ${buildRowGapRules(rowHeightPx, rowGapPx)}
 
   ${buildLevelPaddingRules()}
 

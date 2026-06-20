@@ -28,7 +28,9 @@ export function useChatSessions({
   messages,
   connectionState,
   backendSessions,
+  sessionListLoaded,
   activeSessionId,
+  workspaceId,
   createSession,
   switchSession,
   setWelcomeMessage,
@@ -36,66 +38,104 @@ export function useChatSessions({
   messages: AgentChatMessage[]
   connectionState: string
   backendSessions: SessionSummary[]
+  sessionListLoaded: boolean
   activeSessionId: string | null
+  workspaceId: string | null
   createSession: () => void
   switchSession: (sessionId: string) => void
   setWelcomeMessage: (text: string) => void
 }) {
   const [openChatTabs, setOpenChatTabs] = useState<ChatTab[]>(() => {
-    const ids = loadChatTabIds()
+    const ids = loadChatTabIds(workspaceId)
     return ids.length > 0
       ? ids.map((id) => ({ id, title: "New chat" }))
       : []
   })
   const [chatSessionId, setChatSessionId] = useState<string | null>(
-    () => loadChatTabIds()[0] ?? null,
+    () => loadChatTabIds(workspaceId)[0] ?? null,
   )
   const [chatOpen, setChatOpen] = useState(true)
   const bootstrappedRef = useRef(false)
 
   useEffect(() => {
-    if (connectionState !== "open" || bootstrappedRef.current) return
-    if (backendSessions.length === 0 && openChatTabs.length === 0) {
-      bootstrappedRef.current = true
-      createSession()
+    if (connectionState !== "open") {
+      bootstrappedRef.current = false
+    }
+  }, [connectionState])
+
+  useEffect(() => {
+    const ids = loadChatTabIds(workspaceId)
+    setOpenChatTabs(ids.map((id) => ({ id, title: "New chat" })))
+    setChatSessionId(ids[0] ?? null)
+    bootstrappedRef.current = false
+  }, [workspaceId])
+
+  useEffect(() => {
+    if (
+      connectionState !== "open" ||
+      !sessionListLoaded ||
+      bootstrappedRef.current
+    ) {
       return
     }
-    if (openChatTabs.length === 0 && backendSessions.length > 0) {
+
+    const backendIds = new Set(backendSessions.map((s) => s.session_id))
+    const storedIds = loadChatTabIds(workspaceId)
+    const validTabIds = storedIds.filter((id) => backendIds.has(id))
+
+    if (validTabIds.length === 0) {
       bootstrappedRef.current = true
-      const ids = backendSessions.map((s) => s.session_id)
-      saveChatTabIds(ids)
-      setOpenChatTabs(tabsFromBackend(ids, backendSessions))
-      const first = ids[0]
-      setChatSessionId(first)
-      switchSession(first)
+      if (backendSessions.length > 0) {
+        const first = backendSessions[0].session_id
+        setOpenChatTabs(tabsFromBackend([first], backendSessions))
+        setChatSessionId(first)
+        saveChatTabIds([first], workspaceId)
+        if (activeSessionId !== first) switchSession(first)
+      } else {
+        createSession()
+      }
       return
     }
-    if (chatSessionId && activeSessionId !== chatSessionId) {
-      switchSession(chatSessionId)
+
+    if (validTabIds.length !== storedIds.length) {
+      setOpenChatTabs(tabsFromBackend(validTabIds, backendSessions))
+      saveChatTabIds(validTabIds, workspaceId)
+    }
+
+    const preferredId = chatSessionId ?? storedIds[0] ?? null
+    const targetId =
+      preferredId && backendIds.has(preferredId)
+        ? preferredId
+        : validTabIds[0]
+
+    setChatSessionId(targetId)
+    if (activeSessionId !== targetId) {
+      switchSession(targetId)
     }
     bootstrappedRef.current = true
   }, [
     connectionState,
+    sessionListLoaded,
     backendSessions,
-    openChatTabs.length,
     chatSessionId,
     activeSessionId,
     createSession,
     switchSession,
+    workspaceId,
   ])
 
   useEffect(() => {
-    if (backendSessions.length === 0) return
+    if (!sessionListLoaded || backendSessions.length === 0) return
     setOpenChatTabs((prev) => {
       const ids = prev.map((t) => t.id)
-      return tabsFromBackend(ids.length > 0 ? ids : loadChatTabIds(), backendSessions)
+      return tabsFromBackend(ids, backendSessions)
     })
-  }, [backendSessions])
+  }, [backendSessions, sessionListLoaded])
 
   useEffect(() => {
     if (!activeSessionId) return
     setChatSessionId(activeSessionId)
-    prependChatTabId(activeSessionId)
+    prependChatTabId(activeSessionId, workspaceId)
     setOpenChatTabs((prev) => {
       const exists = prev.some((t) => t.id === activeSessionId)
       const meta = backendSessions.find((s) => s.session_id === activeSessionId)
@@ -111,12 +151,12 @@ export function useChatSessions({
       }
       return [{ id: activeSessionId, title }, ...prev]
     })
-  }, [activeSessionId, backendSessions, messages])
+  }, [activeSessionId, backendSessions, messages, workspaceId])
 
   useEffect(() => {
     const ids = openChatTabs.map((t) => t.id)
-    if (ids.length > 0) saveChatTabIds(ids)
-  }, [openChatTabs])
+    if (ids.length > 0) saveChatTabIds(ids, workspaceId)
+  }, [openChatTabs, workspaceId])
 
   const handleNewChat = useCallback(() => {
     createSession()
@@ -132,10 +172,15 @@ export function useChatSessions({
     (id: string) => {
       if (!chatOpen) setChatOpen(true)
       if (id === chatSessionId) return
+      const existsOnBackend = backendSessions.some((s) => s.session_id === id)
+      if (!existsOnBackend) {
+        setOpenChatTabs((prev) => prev.filter((t) => t.id !== id))
+        return
+      }
       setChatSessionId(id)
       switchSession(id)
     },
-    [chatOpen, chatSessionId, switchSession],
+    [chatOpen, chatSessionId, backendSessions, switchSession],
   )
 
   const handleSelectHistorySession = useCallback(

@@ -1,9 +1,11 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Add01Icon, CircleIcon, Tick01Icon, WorkHistoryIcon } from "@hugeicons/core-free-icons";
+import { Add01Icon, WorkHistoryIcon } from "@hugeicons/core-free-icons";
 import {
   MenuGroup,
   MenuGroupLabel,
   MenuItem,
+  MenuRadioGroup,
+  MenuRadioItem,
   MenuSeparator,
   MenuSub,
   MenuSubPopup,
@@ -14,61 +16,31 @@ import {
   type ChatSessionListItem,
 } from "@/lib/chat-session-groups"
 import { shell } from "@/lib/shell-chrome"
-import { cn } from "@/lib/utils"
 
-function ChatSessionMenuItem({
-  item,
-  active,
-  onSelect,
-}: {
-  item: ChatSessionListItem
-  active: boolean
-  onSelect: (id: string) => void
-}) {
+const chatSessionRadioItemClass = shell.menuRadioItem
+
+function ChatSessionRadioItem({ item }: { item: ChatSessionListItem }) {
   const label = item.title || "New chat"
   return (
-    <MenuItem
-      className={cn(
-        shell.menuItem,
-        active && "bg-accent text-accent-foreground",
-      )}
-      onClick={() => onSelect(item.id)}
-    >
-      {active ? (
-        <HugeiconsIcon icon={CircleIcon} aria-hidden="true" className="size-2 shrink-0 fill-primary text-primary" />
-      ) : (
-        <span aria-hidden="true" className="size-2 shrink-0" />
-      )}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {active ? (
-        <HugeiconsIcon icon={Tick01Icon} aria-hidden="true" className="size-4 shrink-0 text-primary" />
-      ) : null}
-    </MenuItem>
+    <MenuRadioItem value={item.id} className={chatSessionRadioItemClass}>
+      {label}
+    </MenuRadioItem>
   )
 }
 
 function ChatSessionGroup({
   label,
   items,
-  activeId,
-  onSelect,
 }: {
   label: string
   items: ChatSessionListItem[]
-  activeId: string
-  onSelect: (id: string) => void
 }) {
   if (items.length === 0) return null
   return (
     <MenuGroup>
       <MenuGroupLabel>{label}</MenuGroupLabel>
       {items.map((item) => (
-        <ChatSessionMenuItem
-          key={item.id}
-          item={item}
-          active={item.id === activeId}
-          onSelect={onSelect}
-        />
+        <ChatSessionRadioItem key={item.id} item={item} />
       ))}
     </MenuGroup>
   )
@@ -102,24 +74,15 @@ export function ChatSwitcherMenuContent({
       {sessions.length > 0 ? (
         <>
           <MenuSeparator />
-          <ChatSessionGroup
-            label="Today"
-            items={today}
-            activeId={activeId}
-            onSelect={onSelectSession}
-          />
-          <ChatSessionGroup
-            label="Previous 7 days"
-            items={previous7Days}
-            activeId={activeId}
-            onSelect={onSelectSession}
-          />
-          <ChatSessionGroup
-            label="Older"
-            items={older}
-            activeId={activeId}
-            onSelect={onSelectSession}
-          />
+          <MenuRadioGroup
+            className="min-w-0 w-full"
+            value={activeId}
+            onValueChange={onSelectSession}
+          >
+            <ChatSessionGroup label="Today" items={today} />
+            <ChatSessionGroup label="Previous 7 days" items={previous7Days} />
+            <ChatSessionGroup label="Older" items={older} />
+          </MenuRadioGroup>
         </>
       ) : null}
       <MenuSeparator />
@@ -135,14 +98,15 @@ export function ChatSwitcherMenuContent({
                 No saved chats
               </MenuItem>
             ) : (
-              historySessions.map((item) => (
-                <ChatSessionMenuItem
-                  key={item.id}
-                  item={item}
-                  active={item.id === activeId}
-                  onSelect={onSelectHistorySession}
-                />
-              ))
+              <MenuRadioGroup
+                className="min-w-0 w-full"
+                value={activeId}
+                onValueChange={onSelectHistorySession}
+              >
+                {historySessions.map((item) => (
+                  <ChatSessionRadioItem key={item.id} item={item} />
+                ))}
+              </MenuRadioGroup>
             )}
           </MenuSubPopup>
         </MenuSub>

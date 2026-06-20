@@ -8,10 +8,14 @@ export type StoredChatTab = {
 const STORAGE_KEY = "writing-agent:chat-session-ids"
 const MAX_TABS = 20
 
-function readTabIds(): string[] {
+function storageKey(workspaceId?: string | null): string {
+  return workspaceId ? `${STORAGE_KEY}:${workspaceId}` : STORAGE_KEY
+}
+
+function readTabIds(workspaceId?: string | null): string[] {
   if (typeof window === "undefined") return []
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const raw = window.localStorage.getItem(storageKey(workspaceId))
     if (!raw) return []
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
@@ -21,28 +25,28 @@ function readTabIds(): string[] {
   }
 }
 
-function writeTabIds(ids: string[]): void {
+function writeTabIds(ids: string[], workspaceId?: string | null): void {
   window.localStorage.setItem(
-    STORAGE_KEY,
+    storageKey(workspaceId),
     JSON.stringify(ids.slice(0, MAX_TABS)),
   )
 }
 
-export function loadChatTabIds(): string[] {
-  return readTabIds()
+export function loadChatTabIds(workspaceId?: string | null): string[] {
+  return readTabIds(workspaceId)
 }
 
-export function saveChatTabIds(ids: string[]): void {
-  writeTabIds(ids)
+export function saveChatTabIds(ids: string[], workspaceId?: string | null): void {
+  writeTabIds(ids, workspaceId)
 }
 
-export function prependChatTabId(id: string): void {
-  const rest = readTabIds().filter((x) => x !== id)
-  writeTabIds([id, ...rest])
+export function prependChatTabId(id: string, workspaceId?: string | null): void {
+  const rest = readTabIds(workspaceId).filter((x) => x !== id)
+  writeTabIds([id, ...rest], workspaceId)
 }
 
-export function removeChatTabId(id: string): void {
-  writeTabIds(readTabIds().filter((x) => x !== id))
+export function removeChatTabId(id: string, workspaceId?: string | null): void {
+  writeTabIds(readTabIds(workspaceId).filter((x) => x !== id), workspaceId)
 }
 
 export function sessionTitleFromMessages(

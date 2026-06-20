@@ -27,6 +27,14 @@ export const contentReadingColumnClass =
 export const contentBoxLaneClass =
   "mx-[var(--content-inset-box)] box-border w-[calc(100%-2*var(--content-inset-box))] max-w-[calc(100%-2*var(--content-inset-box))]" as const
 
+/** Review dock — slightly wider than box lane (12px inset vs 16px). */
+export const reviewDockLaneClass =
+  "mx-3 box-border w-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)]" as const
+
+/** Text lane width inside a box-lane shell (+16px inset each side). */
+export const contentTextLaneInBoxClass =
+  "mx-[var(--content-inset-box)] box-border w-[calc(100%-2*var(--content-inset-box))] max-w-[calc(100%-2*var(--content-inset-box))]" as const
+
 /** Text lane inside reading column (32px) — process chain, matches answer prose after Streamdown inset. */
 export const contentTextLaneClass =
   "mx-[var(--content-inset-text)] box-border w-[calc(100%-2*var(--content-inset-text))] max-w-[calc(100%-2*var(--content-inset-text))]" as const
