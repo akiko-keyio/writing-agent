@@ -53,12 +53,27 @@ class FakeModel(Model):
         turns: list[FakeTurn] | None = None,
         *,
         gate: asyncio.Event | None = None,
+        subagent_responses: dict[str, str] | None = None,
     ) -> None:
         self._config: dict[str, Any] = {"model_id": "fake-model"}
         self._turns: list[FakeTurn] = list(turns or [FakeTurn(text="(fake reply)")])
         self._index = 0
         self._gate = gate
+        # Maps a substring of a sub-agent's system prompt to a canned text reply.
+        # Lets evals script the main agent while a delegated sub-agent (e.g.
+        # ``review``) responds deterministically WITHOUT consuming main turns.
+        self._subagent_responses: dict[str, str] = dict(subagent_responses or {})
         self.stream_calls = 0
+
+    def _match_subagent(self, system_prompt: str | None) -> str | None:
+        if not system_prompt or not self._subagent_responses:
+            return None
+        if system_prompt.startswith("You are a writing assistant in a markdown IDE."):
+            return None
+        for key, reply in self._subagent_responses.items():
+            if key in system_prompt:
+                return reply
+        return None
 
     def update_config(self, **model_config: Any) -> None:
         self._config.update(model_config)
@@ -71,6 +86,27 @@ class FakeModel(Model):
 
     async def stream(self, *args: Any, **kwargs: Any) -> AsyncIterable[dict[str, Any]]:  # type: ignore[override]
         self.stream_calls += 1
+
+        # Sub-agent calls (e.g. the ``review`` specialist) carry their own system
+        # prompt. Answer them from the canned map and DO NOT advance the main
+        # script index, so the orchestrator's scripted turns stay aligned.
+        system_prompt = kwargs.get("system_prompt")
+        if system_prompt is None and len(args) >= 3 and isinstance(args[2], str):
+            system_prompt = args[2]
+        canned = self._match_subagent(system_prompt)
+        if canned is not None:
+            yield {"messageStart": {"role": "assistant"}}
+            yield {"contentBlockStart": {"contentBlockIndex": 0, "start": {}}}
+            yield {
+                "contentBlockDelta": {
+                    "contentBlockIndex": 0,
+                    "delta": {"text": canned},
+                },
+            }
+            yield {"contentBlockStop": {"contentBlockIndex": 0}}
+            yield {"messageStop": {"stopReason": "end_turn"}}
+            return
+
         if self._index < len(self._turns):
             turn = self._turns[self._index]
         else:

@@ -65,7 +65,7 @@ def test_set_active_model_changes_factory_result(models_yaml: Path) -> None:
             id="alpha",
             provider="OpenAI",
             model="model-alpha",
-            api_key="sk-alpha",
+            api_key="sk-alpha-key",
             api_base="https://a/v1",
         ),
     )
@@ -74,7 +74,7 @@ def test_set_active_model_changes_factory_result(models_yaml: Path) -> None:
             id="beta",
             provider="OpenAI",
             model="model-beta",
-            api_key="sk-beta",
+            api_key="sk-beta-key",
             api_base="https://b/v1",
         ),
     )

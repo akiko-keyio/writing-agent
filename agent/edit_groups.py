@@ -20,24 +20,21 @@ from typing import Any, Literal
 
 EditKind = Literal["replace", "delete", "insert"]
 
-# Edit statuses
+# Edit statuses. Removal is a single terminal state: ``dismissed``. An adjustment
+# leaves the superseded edit ``dismissed`` with a ``replaced_by`` pointer — the
+# pointer (not a separate status) distinguishes "wanted a different version" from
+# a plain dismissal.
 EDIT_PROPOSED = "proposed"
 EDIT_APPLIED = "applied"
-EDIT_REJECTED = "rejected"
-EDIT_REPLACED = "replaced"
 EDIT_STALE = "stale"
-EDIT_ERROR = "error"
-EDIT_DELETED = "deleted"
+EDIT_DISMISSED = "dismissed"
 
-# Group statuses
+# Group statuses.
 GROUP_PROPOSED = "proposed"
 GROUP_PARTIALLY_APPLIED = "partially_applied"
 GROUP_APPLIED = "applied"
-GROUP_REJECTED = "rejected"
-GROUP_REPLACED = "replaced"
-GROUP_DELETED = "deleted"
+GROUP_DISMISSED = "dismissed"
 GROUP_STALE = "stale"
-GROUP_ERROR = "error"
 
 RISK_LEVELS = {"low", "medium", "high"}
 
@@ -75,7 +72,11 @@ class EditAnchor:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> EditAnchor:
+    def from_dict(cls, data: dict[str, Any] | str | None) -> EditAnchor:
+        if isinstance(data, str):
+            if data:
+                return cls(prefix_context=data)
+            return cls()
         data = data or {}
         return cls(
             prefix_context=str(data.get("prefix_context", "")),
@@ -324,6 +325,33 @@ def _new_text_for(edit: Edit) -> str:
 # --------------------------------------------------------------------------
 
 
+def _normalize_raw_edit(raw: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a raw edit dict before parsing.
+
+    Handles common LLM mistakes: bare-string anchor, 'position' field used
+    instead of proper anchor object, and missing anchor for insert kind.
+    """
+    if not isinstance(raw, dict):
+        raise EditValidationError(
+            f"Each edit must be a dict, got {type(raw).__name__}."
+        )
+    anchor = raw.get("anchor")
+    position = raw.pop("position", None)
+    if raw.get("kind") == "insert" and not anchor and raw.get("old_text"):
+        old = raw.pop("old_text")
+        if position == "before":
+            anchor = {"suffix_context": old}
+        else:
+            anchor = {"prefix_context": old}
+        raw["anchor"] = anchor
+    elif isinstance(anchor, str) and anchor:
+        if position == "before":
+            raw["anchor"] = {"suffix_context": anchor}
+        else:
+            raw["anchor"] = {"prefix_context": anchor}
+    return raw
+
+
 def build_group(
     *,
     session_id: str,
@@ -362,6 +390,7 @@ def build_group(
 
     spans: list[tuple[int, int]] = []
     for raw in edits:
+        raw = _normalize_raw_edit(raw)
         edit = Edit.from_dict({**raw, "id": raw.get("id") or _new_id("e")})
         if edit.kind not in ("replace", "delete", "insert"):
             raise EditValidationError(f"Unknown edit kind: {edit.kind!r}")
@@ -408,7 +437,7 @@ def _reject_overlaps(spans: list[tuple[int, int]]) -> None:
 def refresh_group(group: EditGroup, buffer: str) -> EditGroup:
     """Recompute edit/group status against the current buffer (stale detection).
 
-    Terminal edits (applied/rejected/replaced/deleted) are left untouched.
+    Terminal edits (applied/dismissed) are left untouched.
     """
     active = False
     stale = False
@@ -423,7 +452,7 @@ def refresh_group(group: EditGroup, buffer: str) -> EditGroup:
             edit.status = EDIT_STALE
             stale = True
 
-    if group.status in (GROUP_APPLIED, GROUP_REJECTED, GROUP_DELETED, GROUP_REPLACED):
+    if group.status in (GROUP_APPLIED, GROUP_DISMISSED):
         return group
     if active:
         group.status = GROUP_PROPOSED
@@ -443,7 +472,7 @@ def apply_group(group: EditGroup, buffer: str) -> tuple[str, EditGroup]:
     """
     if group.status == GROUP_APPLIED:
         raise EditValidationError("Group is already applied.")
-    if group.status in (GROUP_REJECTED, GROUP_DELETED):
+    if group.status == GROUP_DISMISSED:
         raise EditValidationError(f"Cannot apply a {group.status} group.")
 
     spans: list[_Span] = []
@@ -480,19 +509,32 @@ def apply_group(group: EditGroup, buffer: str) -> tuple[str, EditGroup]:
     return new_buffer, group
 
 
-def reject_group(group: EditGroup) -> EditGroup:
-    group.status = GROUP_REJECTED
+def dismiss_group(group: EditGroup) -> EditGroup:
+    """Dismiss a group. Applicable edits become ``dismissed`` (keeping any
+    ``replaced_by`` pointer). This is a neutral group-level removal."""
+    group.status = GROUP_DISMISSED
     for edit in group.edits:
         if edit.status in _APPLICABLE:
-            edit.status = EDIT_REJECTED
+            edit.status = EDIT_DISMISSED
     group.updated_at = time.time()
     return group
 
 
-def delete_group(group: EditGroup) -> EditGroup:
-    group.status = GROUP_DELETED
+def reject_edit(group: EditGroup, edit_id: str) -> Edit:
+    """Reject one edit while keeping any remaining candidates reviewable."""
+    edit = group.get_edit(edit_id)
+    if edit is None:
+        raise EditValidationError(f"Edit not found: {edit_id}")
+    if edit.status not in _APPLICABLE:
+        raise EditValidationError(f"Cannot reject a {edit.status} edit.")
+
+    edit.status = EDIT_DISMISSED
+    if all(e.status == EDIT_DISMISSED for e in group.edits):
+        group.status = GROUP_DISMISSED
+    elif any(e.status in _APPLICABLE for e in group.edits):
+        group.status = GROUP_PROPOSED
     group.updated_at = time.time()
-    return group
+    return edit
 
 
 def replace_edit(
@@ -503,13 +545,17 @@ def replace_edit(
 ) -> Edit:
     """Supersede ``edit_id`` with a new validated edit, linking replace lineage.
 
-    The old edit becomes ``replaced`` with ``replaced_by`` set; the new edit
+    The old edit becomes ``deleted`` with ``replaced_by`` set; the new edit
     carries ``replaces`` pointing back. Memory uses this pointer to distinguish a
-    rejection (no pointer) from "user wanted a different version" (pointer).
+    dismissal (no pointer) from "user wanted a different version" (pointer).
     """
     old = group.get_edit(edit_id)
     if old is None:
-        raise EditValidationError(f"Edit not found: {edit_id}")
+        available = [e.id for e in group.edits if e.status == EDIT_PROPOSED]
+        raise EditValidationError(
+            f"Edit not found: {edit_id}. "
+            f"Available edit IDs in group {group.id}: {available}"
+        )
 
     new_edit = Edit.from_dict({**new_fields, "id": _new_id("e")})
     if not new_edit.anchor.content_hash and new_edit.old_text:
@@ -522,7 +568,7 @@ def replace_edit(
     new_edit.replaces = old.id
     new_edit.status = EDIT_PROPOSED
     old.replaced_by = new_edit.id
-    old.status = EDIT_REPLACED
+    old.status = EDIT_DISMISSED
     group.edits.append(new_edit)
     group.updated_at = time.time()
     return new_edit

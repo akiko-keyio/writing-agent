@@ -8,6 +8,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from project_root import resolve_project_root
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(_REPO_ROOT / ".env")
 load_dotenv()
@@ -52,14 +54,8 @@ class Config:
         default_factory=lambda: os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     )
 
-    # Project configuration
-    project_root: Path = field(
-        default_factory=lambda: Path(
-            os.getenv("WRITING_AGENT_PROJECT_ROOT", "")
-        ).resolve()
-        if os.getenv("WRITING_AGENT_PROJECT_ROOT")
-        else Path.cwd()
-    )
+    # Project configuration (default writing workspace: repo/examples/)
+    project_root: Path = field(default_factory=resolve_project_root)
 
     # Frontend configuration (for display only)
     frontend_openai_model: str = field(

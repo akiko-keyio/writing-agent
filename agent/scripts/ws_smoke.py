@@ -30,7 +30,7 @@ from main import connection_handler
 HOST = "localhost"
 PORT = 8799
 URL = f"ws://{HOST}:{PORT}"
-DOC_PATH = "examples/_ws_smoke.md"
+DOC_PATH = "_ws_smoke.md"
 ORIGINAL = "# Smoke\n\nWe utilize the API to fetch data.\n"
 
 
@@ -79,7 +79,7 @@ async def _client() -> int:
     # Verify on disk.
     from project_root import resolve_project_root
 
-    disk = resolve_project_root() / "examples" / "_ws_smoke.md"
+    disk = resolve_project_root() / "_ws_smoke.md"
     content = disk.read_text(encoding="utf-8")
     assert "use the API" in content, content
     disk.unlink(missing_ok=True)

@@ -1,4 +1,4 @@
-"""File-backed session snapshots under ``.writing-agent/sessions/``.
+"""File-backed session snapshots scoped under ``.writing-agent/workspaces/``.
 
 State survives backend restart. Reads are recoverable: a corrupt session file is
 skipped in listings and treated as a missing session on load, rather than
@@ -8,6 +8,7 @@ crashing the connection.
 from __future__ import annotations
 
 import logging
+import shutil
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -25,6 +26,7 @@ from storage import (
 )
 from strands.types.content import Message
 from strands_runner import WritingAgentRunner
+from workspace_context import default_workspace_context, sanitize_workspace_id
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,8 @@ class SessionSnapshot:
     agent_state: dict[str, Any]
     open_buffers: dict[str, str]
     active_path: str | None
+    workspace_id: str = ""
+    project_root: str = ""
     updated_at: float = field(default=0.0)
 
     def to_dict(self) -> dict[str, Any]:
@@ -51,6 +55,8 @@ class SessionSnapshot:
             "agent_state": self.agent_state,
             "open_buffers": self.open_buffers,
             "active_path": self.active_path,
+            "workspace_id": self.workspace_id,
+            "project_root": self.project_root,
         }
 
     @classmethod
@@ -64,18 +70,62 @@ class SessionSnapshot:
             agent_state=dict(data.get("agent_state", {})),
             open_buffers=dict(data.get("open_buffers", {})),
             active_path=data.get("active_path"),
+            workspace_id=str(data.get("workspace_id", "")),
+            project_root=str(data.get("project_root", "")),
         )
 
 
 class SessionStore:
     """Persists session snapshots as JSON files keyed by session_id."""
 
-    def __init__(self, base_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        base_dir: Path | None = None,
+        *,
+        workspace_id: str | None = None,
+        project_root: Path | str | None = None,
+    ) -> None:
         root = base_dir if base_dir is not None else state_root()
-        self._dir = ensure_dir(Path(root) / "sessions")
+        default_workspace = default_workspace_context()
+        self._base_dir = Path(root)
+        self.workspace_id = sanitize_workspace_id(
+            workspace_id or default_workspace.workspace_id
+        )
+        self.project_root = (
+            str(Path(project_root).expanduser().resolve())
+            if project_root is not None
+            else str(default_workspace.project_root)
+        )
+        self._dir = ensure_dir(
+            self._base_dir / "workspaces" / self.workspace_id / "sessions"
+        )
+        self._migrate_legacy_default_sessions(default_workspace.workspace_id)
+
+    def for_workspace(
+        self,
+        workspace_id: str,
+        *,
+        project_root: Path | str | None = None,
+    ) -> "SessionStore":
+        return SessionStore(
+            self._base_dir,
+            workspace_id=workspace_id,
+            project_root=project_root,
+        )
 
     def _path(self, session_id: str) -> Path:
         return self._dir / f"{session_id}.json"
+
+    def _migrate_legacy_default_sessions(self, default_workspace_id: str) -> None:
+        if self.workspace_id != default_workspace_id:
+            return
+        legacy_dir = self._base_dir / "sessions"
+        if not legacy_dir.is_dir():
+            return
+        for legacy_file in legacy_dir.glob("*.json"):
+            target = self._dir / legacy_file.name
+            if not target.exists():
+                shutil.copy2(legacy_file, target)
 
     def save(
         self,
@@ -97,6 +147,8 @@ class SessionStore:
             agent_state=runner.snapshot_agent_state(),
             open_buffers=dict(session.open_buffers),
             active_path=session.active_path,
+            workspace_id=self.workspace_id,
+            project_root=self.project_root,
         )
         atomic_write_json(self._path(session_id), snap.to_dict())
 
@@ -126,6 +178,7 @@ class SessionStore:
                 "session_id": s.session_id,
                 "title": s.title,
                 "created_at": s.created_at,
+                "workspace_id": self.workspace_id,
             }
             for s in items
         ]
@@ -142,6 +195,8 @@ class SessionStore:
             agent_state={},
             open_buffers={},
             active_path=None,
+            workspace_id=self.workspace_id,
+            project_root=self.project_root,
         )
         atomic_write_json(self._path(session_id), snap.to_dict())
         return session_id

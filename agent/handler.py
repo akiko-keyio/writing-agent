@@ -7,32 +7,34 @@ import json
 import logging
 import uuid
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any
 
-from connection import Connection
+from session_title import initial_session_title, resolve_session_title
 from project_root import normalize_workspace_path
 from protocol import SessionState
 from review_handlers import (
     group_state_events,
     handle_document_save,
     handle_group_apply,
-    handle_group_delete,
+    handle_group_dismiss,
     handle_group_propose,
+    handle_group_reject,
     handle_group_replace_edit,
     handle_group_state,
-    handle_group_reject,
     handle_memory_read,
     handle_memory_update,
 )
-from strands_runner import messages_to_ui
+from strands_runner import messages_to_ui, read_auto_review, sync_auto_review_prompt
+from workspace_context import default_workspace_context, workspace_context_for_root
 
 logger = logging.getLogger(__name__)
 
 _REVIEW_ROUTES = {
     "group/propose": handle_group_propose,
     "group/apply": handle_group_apply,
+    "group/dismiss": handle_group_dismiss,
     "group/reject": handle_group_reject,
-    "group/delete": handle_group_delete,
     "group/replace_edit": handle_group_replace_edit,
     "group/state": handle_group_state,
     "document/save": handle_document_save,
@@ -112,15 +114,23 @@ def _apply_chat_context_buffers(session: SessionState, context: dict[str, Any] |
         session.active_path = norm
 
 
+def _parse_auto_review(raw: dict[str, Any], runner: Any) -> bool:
+    if "auto_review" in raw:
+        return bool(raw.get("auto_review"))
+    return read_auto_review(runner.snapshot_agent_state())
+
+
+def _session_auto_review_payload(runner: Any) -> dict[str, bool]:
+    return {"auto_review": read_auto_review(runner.snapshot_agent_state())}
+
+
 def _persist_current(conn: Connection) -> None:
     if not conn.current_session_id:
         return
-    title = conn.runner.title_from_messages()
     conn.session_store.save(
         conn.current_session_id,
         conn.runner,
         conn.session,
-        title=title,
     )
 
 
@@ -134,6 +144,28 @@ def _load_snapshot_into_connection(conn: Connection, session_id: str) -> bool:
     conn.session.clear_pending_edits()
     conn.runner.restore_from_snapshot(snap.messages, snap.agent_state)
     return True
+
+
+def _workspace_payload(conn: Connection) -> dict[str, Any]:
+    return {
+        "workspace_id": conn.workspace_id,
+        "project_root": str(conn.project_root),
+        "display_name": conn.workspace_display_name,
+        "active_session_id": conn.current_session_id,
+        "sessions": conn.session_store.list_all(),
+    }
+
+
+def _resolve_workspace_context(raw: dict[str, Any]):
+    display_name = raw.get("display_name")
+    name = display_name.strip() if isinstance(display_name, str) else None
+    project_root = raw.get("project_root")
+    if isinstance(project_root, str) and project_root.strip():
+        root = Path(project_root).expanduser().resolve()
+        if not root.is_dir():
+            raise ValueError(f"Workspace root does not exist: {project_root}")
+        return workspace_context_for_root(root, display_name=name)
+    return default_workspace_context()
 
 
 async def handle_message_events(
@@ -157,6 +189,22 @@ async def handle_message_events(
         _apply_document_change(session, raw)
         return
 
+    if msg_type == "workspace/switch":
+        try:
+            workspace = _resolve_workspace_context(raw)
+        except (OSError, ValueError) as exc:
+            yield error_event(str(exc), code="invalid_workspace")
+            return
+        if workspace.workspace_id != conn.workspace_id:
+            _persist_current(conn)
+            conn.switch_workspace(workspace)
+        yield {
+            "type": "workspace/switched",
+            **_workspace_payload(conn),
+            **_session_auto_review_payload(conn.runner),
+        }
+        return
+
     if msg_type == "session/clear":
         session.clear_pending_edits()
         session.clear_buffers()
@@ -172,6 +220,7 @@ async def handle_message_events(
             "type": "session/cleared",
             "session_id": conn.current_session_id,
             "messages": [],
+            **_session_auto_review_payload(runner),
         }
         return
 
@@ -182,11 +231,23 @@ async def handle_message_events(
         session.clear_pending_edits()
         session.clear_buffers()
         runner.clear_conversation()
+        sync_auto_review_prompt(runner, False)
         yield {
             "type": "session/created",
             "session_id": session_id,
             "messages": [],
+            **_session_auto_review_payload(runner),
         }
+        return
+
+    if msg_type == "session/auto_review":
+        if "enabled" not in raw:
+            yield error_event("enabled is required", code="invalid_session")
+            return
+        enabled = bool(raw.get("enabled"))
+        sync_auto_review_prompt(runner, enabled)
+        _persist_current(conn)
+        yield {"type": "session/auto_review", "auto_review": enabled}
         return
 
     if msg_type == "session/list":
@@ -209,6 +270,7 @@ async def handle_message_events(
             "type": "session/restored",
             "session_id": conn.current_session_id,
             "messages": messages_to_ui(runner.messages),
+            **_session_auto_review_payload(runner),
         }
         # Restore the edit groups belonging to this session so the Review Queue
         # rehydrates without the frontend guessing.
@@ -241,7 +303,14 @@ async def handle_message_events(
         return
 
     if msg_type == "settings/update":
-        from model_manager import add_model, remove_model, set_active_model, update_model, ModelEntry
+        from model_manager import (
+            add_model,
+            remove_model,
+            set_active_model,
+            settings_models_config,
+            update_model,
+            ModelEntry,
+        )
         from tool_manager import list_tools_for_settings, set_tool_enabled
 
         action = raw.get("action")
@@ -259,6 +328,24 @@ async def handle_message_events(
                         "message": "Model name, base URL, and API key are required",
                     }
                     return
+                if not api_base.startswith(("http://", "https://")):
+                    yield {
+                        "type": "error",
+                        "message": "Base URL must start with http:// or https://",
+                    }
+                    return
+                if len(api_key) < 8:
+                    yield {
+                        "type": "error",
+                        "message": "API key looks too short",
+                    }
+                    return
+                if len(model_name) < 2:
+                    yield {
+                        "type": "error",
+                        "message": "Model name looks too short",
+                    }
+                    return
                 entry = ModelEntry(
                     id=model_data.get("id", ""),
                     provider=model_data.get("provider", "OpenAI"),
@@ -267,7 +354,7 @@ async def handle_message_events(
                     api_base=api_base,
                     temperature=float(model_data.get("temperature", 0.3)),
                 )
-                config = add_model(entry)
+                add_model(entry)
                 # A new model may become active (first model); reflect at runtime.
                 runner.rebuild_model()
             elif action == "update_model":
@@ -275,27 +362,41 @@ async def handle_message_events(
                     yield {"type": "error", "message": "model_id required for update"}
                     return
                 updates = {k: v for k, v in model_data.items() if k != "id"}
+                if "api_key" in updates and not str(updates["api_key"]).strip():
+                    del updates["api_key"]
                 if "model" in updates and not str(updates["model"]).strip():
                     yield {"type": "error", "message": "Model name is required"}
                     return
                 if "api_base" in updates and not str(updates["api_base"]).strip():
                     yield {"type": "error", "message": "Base URL is required"}
                     return
-                config = update_model(model_id, updates)
+                if "api_base" in updates:
+                    base = str(updates["api_base"]).strip()
+                    if not base.startswith(("http://", "https://")):
+                        yield {
+                            "type": "error",
+                            "message": "Base URL must start with http:// or https://",
+                        }
+                        return
+                if "api_key" in updates and str(updates["api_key"]).strip():
+                    if len(str(updates["api_key"]).strip()) < 8:
+                        yield {"type": "error", "message": "API key looks too short"}
+                        return
+                update_model(model_id, updates)
                 # Editing the active model's endpoint/key/name affects the runtime.
                 runner.rebuild_model()
             elif action == "remove_model":
                 if not model_id:
                     yield {"type": "error", "message": "model_id required for remove"}
                     return
-                config = remove_model(model_id)
+                remove_model(model_id)
                 # Removing the active model reselects a new active (or none); rebuild.
                 runner.rebuild_model()
             elif action == "set_active_model":
                 if not model_id:
                     yield {"type": "error", "message": "model_id required for set_active_model"}
                     return
-                config = set_active_model(model_id)
+                set_active_model(model_id)
                 # Rebuild the live runner so the new model takes effect immediately
                 # while preserving conversation history/state.
                 runner.rebuild_model()
@@ -340,7 +441,7 @@ async def handle_message_events(
 
             yield {
                 "type": "settings/updated",
-                "config": config.to_dict(mask_keys=True),
+                "config": settings_models_config().to_dict(mask_keys=True),
             }
         except Exception as e:
             yield {"type": "error", "message": str(e)}
@@ -400,12 +501,37 @@ async def run_chat_turn(
 
     _apply_chat_context_buffers(session, context)
 
+    auto_review = _parse_auto_review(raw, runner)
+    sync_auto_review_prompt(runner, auto_review)
+
     if not conn.current_session_id:
         conn.current_session_id = conn.session_store.create_empty()
         session.clear_pending_edits()
         session.clear_buffers()
         runner.clear_conversation()
 
+    title_updated_event: dict[str, Any] | None = None
+    if conn.current_session_id:
+        existing = conn.session_store.load(conn.current_session_id)
+        existing_title = existing.title if existing else "New chat"
+        if existing_title == "New chat":
+            title = initial_session_title(text)
+            conn.session_store.save(
+                conn.current_session_id,
+                runner,
+                session,
+                title=title,
+            )
+            title_updated_event = {
+                "type": "session/title_updated",
+                "session_id": conn.current_session_id,
+                "title": title,
+            }
+
+    if title_updated_event is not None:
+        yield title_updated_event
+
+    assistant_reply = ""
     async for event in runner.chat_turn_stream(
         session,
         text,
@@ -415,19 +541,32 @@ async def run_chat_turn(
         invocation_extra={
             "session_id": conn.current_session_id,
             "edit_service": conn.edit_service,
+            "memory_store": conn.memory_store,
+            "auto_review": auto_review,
         },
     ):
+        if event.get("type") == "chat/stream_end":
+            assistant_reply = str(event.get("text", ""))
         yield event
         if event.get("type") == "error":
             return
 
     if conn.current_session_id:
+        existing = conn.session_store.load(conn.current_session_id)
+        existing_title = existing.title if existing else "New chat"
+        title = resolve_session_title(
+            runner,
+            user_text=text,
+            assistant_text=assistant_reply,
+            existing_title=existing_title,
+        )
         conn.session_store.save(
             conn.current_session_id,
             runner,
             session,
-            title=runner.title_from_messages(),
+            title=title,
         )
+        # Title is set before the turn; avoid duplicate session/title_updated.
 
     # Legacy auto-apply (pending_replacements -> document/patch) is removed.
     # Document changes flow only through the EditGroup lifecycle

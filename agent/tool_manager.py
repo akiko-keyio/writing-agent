@@ -10,6 +10,12 @@ import yaml
 
 _TOOLS_FILE = Path(__file__).resolve().parent.parent / "tools.yaml"
 
+# Legacy ids kept for migration when reading old tools.yaml files.
+_LEGACY_TOOL_IDS: dict[str, str] = {
+    "read_file": "read_document",
+    "propose_edit_group": "propose_edits",
+}
+
 
 @dataclass(frozen=True)
 class ToolCatalogEntry:
@@ -22,35 +28,51 @@ class ToolCatalogEntry:
 
 TOOL_CATALOG: tuple[ToolCatalogEntry, ...] = (
     ToolCatalogEntry(
-        id="read_file",
-        name="read_file",
+        id="read_document",
+        name="read_document",
         description=(
-            "Read a file from the project workspace. "
+            "Read a document from the project workspace. "
             "Open editor buffers take priority over files on disk."
         ),
     ),
     ToolCatalogEntry(
-        id="search_references",
-        name="search_references",
+        id="check_references",
+        name="check_references",
         description=(
-            "Search the project reference/evidence base for snippets matching a "
-            "query. Read-only; used to gather evidence for verification."
+            "Check DOI/URL reachability, local references/ consistency, "
+            "and claims that may lack evidence. Read-only; does not modify the document."
         ),
     ),
     ToolCatalogEntry(
-        id="check_consistency",
-        name="check_consistency",
-        description=(
-            "Deterministic mechanical consistency checks (whitespace, blank lines, "
-            "double spaces, US/UK spelling mixing). Read-only."
-        ),
-    ),
-    ToolCatalogEntry(
-        id="propose_edit_group",
-        name="propose_edit_group",
+        id="propose_edits",
+        name="propose_edits",
         description=(
             "Propose a validated group of document edits for user review. "
             "The document is not modified until the user applies the group."
+        ),
+    ),
+    ToolCatalogEntry(
+        id="revise_edit",
+        name="revise_edit",
+        description=(
+            "Replace one existing edit proposal inside a group after user feedback. "
+            "Preserves lineage; the document stays unchanged until apply."
+        ),
+    ),
+    ToolCatalogEntry(
+        id="remember_context",
+        name="remember_context",
+        description=(
+            "Record cross-session knowledge (target reader, terminology, domain facts). "
+            "Visible in Settings → Memory."
+        ),
+    ),
+    ToolCatalogEntry(
+        id="propose_principle",
+        name="propose_principle",
+        description=(
+            "Propose a candidate writing principle from observed edit cases. "
+            "Requires user confirmation before it affects future prompts."
         ),
     ),
 )
@@ -60,6 +82,10 @@ _CATALOG_BY_ID = {entry.id: entry for entry in TOOL_CATALOG}
 
 def _default_enabled() -> dict[str, bool]:
     return {entry.id: True for entry in TOOL_CATALOG}
+
+
+def _normalize_tool_id(tool_id: str) -> str:
+    return _LEGACY_TOOL_IDS.get(tool_id, tool_id)
 
 
 def load_tool_prefs() -> dict[str, bool]:
@@ -76,12 +102,13 @@ def load_tool_prefs() -> dict[str, bool]:
         return enabled
 
     for tool_id, item in tools_section.items():
-        if tool_id not in _CATALOG_BY_ID:
+        canonical = _normalize_tool_id(tool_id)
+        if canonical not in _CATALOG_BY_ID:
             continue
         if isinstance(item, dict) and "enabled" in item:
-            enabled[tool_id] = bool(item["enabled"])
+            enabled[canonical] = bool(item["enabled"])
         elif isinstance(item, bool):
-            enabled[tool_id] = item
+            enabled[canonical] = item
 
     return enabled
 
@@ -120,10 +147,11 @@ def get_enabled_tool_ids() -> set[str]:
 
 def set_tool_enabled(tool_id: str, enabled: bool) -> list[dict[str, Any]]:
     """Update one tool's enabled flag."""
-    if tool_id not in _CATALOG_BY_ID:
+    canonical = _normalize_tool_id(tool_id)
+    if canonical not in _CATALOG_BY_ID:
         raise ValueError(f"Unknown tool: {tool_id}")
 
     prefs = load_tool_prefs()
-    prefs[tool_id] = enabled
+    prefs[canonical] = enabled
     save_tool_prefs(prefs)
     return list_tools_for_settings()

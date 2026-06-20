@@ -58,7 +58,7 @@ def test_request_id_generated_when_absent() -> None:
 def test_tool_events_retain_request_id() -> None:
     conn = _fake_conn(
         [
-            FakeTurn(tool_calls=[FakeToolCall(name="read_file", tool_input={"path": "a.md"})]),
+            FakeTurn(tool_calls=[FakeToolCall(name="read_document", tool_input={"path": "a.md"})]),
             FakeTurn(text="done"),
         ],
     )

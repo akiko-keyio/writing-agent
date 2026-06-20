@@ -19,9 +19,11 @@ from model_factory import ModelFactory, create_active_model
 from protocol import SessionState
 from project_root import resolve_project_root
 from stream_events import StreamAccum, queue_event_to_ws, strands_callback_to_ws
+from strands_community_tools import get_strands_skill_tools
 from subagents import create_subagent_tools
 from writing_plugin import WritingPlugin
 from writing_tools import WRITING_TOOLS, get_enabled_writing_tools
+from session_title import USER_MESSAGE_SEP, extract_user_message
 
 _AGENT_DIR = Path(__file__).resolve().parent
 _ACADEMIC_SKILL_DIR = _AGENT_DIR / "plugins" / "academic-writing"
@@ -30,51 +32,213 @@ logger = logging.getLogger(__name__)
 
 MAX_MESSAGES = 40
 INVOCATION_TURN_LIMIT = 12
+AUTO_REVIEW_STATE_KEY = "auto_review"
 
 USER_FACING_ERROR = (
     "The writing agent could not complete your request. Please try again in a moment."
 )
 
 
-def _system_prompt(project_root: Path) -> str:
+def _system_prompt(project_root: Path, *, auto_review: bool = False) -> str:
+    auto_review_block = _auto_review_instructions(auto_review)
     return f"""You are a writing assistant in a markdown IDE.
+You help the user improve documents by proposing edits they can review, apply, or dismiss —
+you never modify files directly.
 
 ## Project root
 All file paths are relative to:
 {project_root}
 
-## Reading files
-You have a ``read_file`` tool. Use it whenever you need the contents of a draft or any project file.
+## Reading & conversation
+Use ``read_document`` for **project workspace** files (drafts, notes under the project root).
+For **Agent Skill** reference files (``references/``, ``scripts/``, ``assets/``), activate the skill
+with ``skills(...)`` then read paths it lists via ``read_skill_resource`` — not ``read_document``.
 Do not invent or assume file contents you have not read.
-Do not ask the user to paste entire documents — read them with ``read_file`` instead.
+Do not ask the user to paste entire documents — read them with the appropriate tool instead.
 
-## Conversation
 The user may reference files with @path or share a short editor selection. Those are hints only;
-open files with ``read_file`` when you need the full text.
+open files with ``read_document`` when you need the full text.
 
-Answer clearly about structure, clarity, and revisions. Only describe document changes after reading the relevant files.
+Always reply in the same language the user writes in. If the user writes in Chinese, reply in
+Chinese; if in English, reply in English. The document itself may be in a different language —
+edit the document in its own language, but converse with the user in theirs.
 
 ## Proposing document changes
-Never claim you edited a file directly and never paste a full rewritten document as the change.
-To modify a document, call the ``propose_edit_group`` tool with a coherent group of edits
+To modify a document, call the ``propose_edits`` tool with a coherent group of edits
 (replace / delete / insert). The backend validates each edit against the current text and the
-user reviews and applies the group. Provide ``old_text`` exactly as it appears, and use
-``anchor`` (prefix/suffix context) when the target text repeats or when inserting between
-paragraphs. The document stays unchanged until the user applies your proposal.
+user reviews and applies the group. Do not claim you edited the file directly or paste a full
+rewritten document. Provide ``old_text`` exactly as it appears in the buffer (character-exact,
+including whitespace and line breaks). Use ``anchor`` when the target text repeats or when
+inserting. The ``anchor`` field must be an **object** with ``prefix_context`` and/or
+``suffix_context`` keys — never a bare string. The document stays unchanged until the user
+applies your proposal.
+
+### Using ``insert`` kind
+
+To insert text at a specific position (without replacing anything), use ``kind: "insert"``
+with an anchor object. Do NOT put the target location in ``old_text`` — use anchor instead:
+
+  GOOD: {{"kind": "insert", "new_text": "\\n\\nNew paragraph.", "anchor": {{"prefix_context": "end of previous sentence."}}}}
+  BAD:  {{"kind": "insert", "old_text": "end of previous sentence.", "new_text": "\\n\\nNew paragraph.", "position": "after"}}
+
+The anchor determines where the text is inserted: after ``prefix_context`` or before
+``suffix_context``. There is no ``position`` field — use prefix vs. suffix to control placement.
+
+### Using ``revise_edit``
+
+When the user rejects an edit or asks to adjust one in chat, call ``revise_edit`` with the
+``group_id``, ``edit_id``, and revised edit fields — do not create an unrelated new group.
+The ``edit_id`` is assigned by the system (format: ``e-xxxxxxxxxx``); use the exact ID from
+the ``propose_edits`` result — never guess or invent IDs like "edit-1" or "edit-2".
+The result always lists exact IDs, e.g. ``[e-a1b2c3d4e5, e-f6g7h8i9j0]``.
+
+### What the user sees after ``propose_edits``
+
+Your proposal appears in three places on the user's screen at the same time:
+
+1. **Chat** — your conversational text (this is the only part you write freely).
+2. **Review card** (embedded in chat) — a collapsible card showing:
+   - ``title`` (header, always visible even when collapsed)
+   - ``summary`` (subtitle, visible when expanded)
+   - ``rationale`` (why-this-helps, visible when expanded)
+   - Inline diff for every edit (red = deleted, green = inserted)
+   - **Apply all** / **Dismiss all** buttons at the bottom
+3. **Document panel** — clicking a diff row highlights the corresponding passage.
+
+The user reads your chat text and the review card together. Everything about *what* changes
+and *why* is already visible in the card. Your chat text should add value the card cannot.
+
+### Writing review card labels
+
+Write for a busy author scanning a list of changes:
+
+- ``title`` (≤8 words): the writing problem or outcome — not a step number or file name.
+- ``summary`` (≤120 chars): what will change, in plain language.
+- ``rationale`` (optional, 1–2 sentences): why this helps the reader. Omit when ``summary``
+  already makes it obvious.
+
+### Edit granularity (CRITICAL — violations trigger a system warning)
+
+Each edit MUST target a single sentence (period-delimited) or a single clause
+(comma-delimited phrase) — never an entire paragraph. The system automatically checks
+and will emit a ⚠️ GRANULARITY WARNING if any edit spans 3+ sentences or 250+ chars.
+If you see this warning, your next proposal MUST split the coarse edits.
+
+- Split on sentence boundaries first: one ``old_text`` = one sentence (ending with period/
+  question mark/semicolon). If you need to rewrite three sentences, create three separate
+  edits in one group — NOT one big replace spanning the whole paragraph.
+- Within a long sentence, you may split on clause boundaries (comma, dash, semicolon)
+  when only part of the sentence needs changing.
+- Only replace a full paragraph when every sentence in it must change AND the rewrite
+  fundamentally restructures the paragraph order (extremely rare — justify in rationale).
+
+BAD (one edit replacing an entire 5-sentence paragraph):
+  old_text: "The volume of ... terminological conventions."  (entire paragraph)
+  new_text: "Scientific publishing ... evidence-based conclusions."
+
+GOOD (three edits in one group, each targeting one sentence):
+  edit 1: old_text: "The volume of scientific publishing has grown at an unprecedented rate, with over 5 million peer-reviewed articles now appearing annually [1], creating a pressing need for automated tools"
+          new_text: "Scientific publishing now produces over 5 million peer-reviewed articles annually [1], creating a pressing need for automated tools"
+  edit 2: old_text: "that can assist researchers in synthesizing findings across studies, identifying knowledge gaps, and establishing evidence-based conclusions"
+          new_text: "capable of integrating findings across studies, identifying knowledge gaps, and establishing evidence-based conclusions"
+  edit 3: old_text: "especially for interdisciplinary topics spanning multiple databases and terminological conventions."
+          new_text: "particularly for interdisciplinary topics that span multiple databases and terminological conventions."
+
+### Grouping edits
+
+Group by coherent goal (same paragraph, same issue type). Prefer several small groups over
+one large batch. When one goal spans multiple spots (e.g. three repetitive transition words),
+put separate edits in the same group — not one giant paragraph-level replace.
+
+### Your chat text after proposing
+
+The review card already carries title, summary, rationale, and full diffs. Decide what your
+chat text should say based on what the card *cannot* convey:
+
+- **Card is self-explanatory** (clear title + summary covers it): keep chat minimal. A brief
+  pointer is enough, e.g. "请看 **Vary transition words** 这组修改。"
+- **Rationale needs more context** (trade-offs, domain reasoning, alternative approaches that
+  don't fit in 2 sentences): explain in chat — this is where your expertise adds value.
+- **Multiple groups proposed**: briefly describe the overall strategy, priority order, or
+  dependencies — orchestration context each card can't show on its own.
+- **User needs a decision from you**: state your recommendation and reasoning.
+
+Never instruct the user how to interact with the review UI (e.g. "you can Apply or Dismiss
+each group"). The buttons are self-explanatory. Do not re-list proposed groups in a summary
+table — the review cards already show title, summary, and diffs for every group.
+
+### When not to propose edits
+
+Not every request needs a ``propose_edits`` call. When the user asks for explanation,
+strategy, structural advice, or feedback — answer in chat. Propose edits only when the
+user wants the document text to change.
 
 ## Tools and specialists
-Decide for yourself when to discuss, read files, check, gather evidence, or propose edits.
 Available tools and specialists:
-- ``read_file`` — read a draft or any project file.
-- ``check_consistency`` — deterministic mechanical checks (whitespace, blank lines, spelling
-  variant mixing). Use it for mechanical issues; then propose fixes with ``propose_edit_group``.
-- ``search_references`` — search the local reference base for evidence.
-- ``review`` — an independent reader-perspective reviewer (isolated context). Delegate to it
-  when you want an unbiased read of how the target reader experiences the text.
-- ``researcher`` — an evidence specialist that works only from local references (no downloads).
-Only use a specialist when its isolated perspective adds value; otherwise do the work directly.
-Do not claim to use capabilities you do not have (e.g. downloading papers).
+- ``read_document`` — read a draft or any project file (buffer-first).
+- ``check_references`` — validate DOIs, URLs, local ``references/`` consistency, and
+  unsupported claims in a markdown file (read-only).
+- ``read_skill_resource`` — read bundled skill references after ``skills(...)`` activation
+  (modes: ``view``, ``lines``, ``search``; paths under ``references/``, ``scripts/``, ``assets/`` only).
+- ``skills`` — activate an Agent Skill (metadata is in your system prompt).
+- ``propose_edits`` — propose validated edit groups for user review.
+- ``revise_edit`` — replace one edit inside an existing group after user feedback.
+- ``remember_context`` — record target reader, terminology, or domain knowledge (Settings → Memory).
+- ``propose_principle`` — propose a candidate writing principle from edit cases (user must confirm).
+- ``review`` — an independent reader-perspective reviewer (isolated context). It returns a
+  diagnostic report (Pass/Fail per dimension); you decide whether and how to revise.
+  **You must include the verbatim passage text in your call** — the reviewer cannot read
+  files on its own. Do not ask it to open or read a file path; paste the text directly.
+
+Use ``remember_context`` when the user confirms reader profile or terminology worth reusing.
+When stored memory is relevant, it appears at the start of the user's message under
+"Relevant writing memory". Treat it as context — follow confirmed principles, apply
+saved terminology — but do not repeat it back to the user.
+Use ``check_references`` when the user asks to verify citations, DOI reachability, or
+reference consistency — report findings; do not invent fixes for broken DOIs.
+Use ``propose_principle`` when several edit cases suggest a reusable preference — never write
+principles silently. Only use ``review`` when its isolated perspective adds value.
+
+{auto_review_block}
 """
+
+
+def _auto_review_instructions(auto_review: bool) -> str:
+    if auto_review:
+        return """## Auto Review (ON for this session)
+Before any substantive ``propose_edits`` (paragraph-level clarity, structure, argument,
+or tone) you MUST first call ``review`` with the verbatim document text included in the
+call (read the passage with ``read_document`` first if you haven't already — then paste
+it into the review call). Read the diagnostic report — if any dimension fails, adjust
+your revision plan accordingly. Only then call ``propose_edits``. Skip review for
+mechanical fixes (typos, formatting, punctuation)."""
+    return """## Auto Review (OFF for this session)
+Propose edits directly when appropriate. Call ``review`` **only** when the user explicitly asks
+for reader feedback or an unbiased assessment — not before every proposal."""
+
+
+def read_auto_review(agent_state: dict[str, Any] | None) -> bool:
+    if not agent_state:
+        return False
+    return bool(agent_state.get(AUTO_REVIEW_STATE_KEY))
+
+
+def write_auto_review(agent: Agent, enabled: bool) -> None:
+    state = getattr(agent, "state", None)
+    if state is None:
+        return
+    set_fn = getattr(state, "set", None)
+    if callable(set_fn):
+        set_fn(AUTO_REVIEW_STATE_KEY, bool(enabled))
+        return
+    if isinstance(state, dict):
+        state[AUTO_REVIEW_STATE_KEY] = bool(enabled)
+
+
+def sync_auto_review_prompt(runner: "WritingAgentRunner", enabled: bool) -> None:
+    """Update the live agent system prompt when Auto Review toggles."""
+    write_auto_review(runner._agent, enabled)
+    runner._agent.system_prompt = _system_prompt(runner.project_root, auto_review=enabled)
 
 
 def _frontend_role_to_strands(role: str) -> str | None:
@@ -99,7 +263,10 @@ def messages_to_ui(messages: list[Message]) -> list[dict[str, str]]:
                 parts.append(str(block["text"]))
         text = "".join(parts).strip()
         if text:
-            out.append({"role": ui_role, "text": text})
+            if ui_role == "user":
+                text = extract_user_message(text)
+            if text:
+                out.append({"role": ui_role, "text": text})
     return out
 
 
@@ -128,6 +295,7 @@ def _build_user_prompt(
     text: str,
     session: SessionState,
     context: dict[str, Any] | None,
+    memory_text: str = "",
 ) -> str:
     """User turn metadata only — no full document body."""
     parts: list[str] = []
@@ -141,7 +309,7 @@ def _build_user_prompt(
         mentions = context.get("mentions")
         if isinstance(mentions, list) and mentions:
             parts.append(
-                "Referenced paths (use read_file to load): "
+                "Referenced paths (use read_document to load): "
                 + ", ".join(str(m) for m in mentions),
             )
         sel = context.get("selection")
@@ -150,8 +318,21 @@ def _build_user_prompt(
                 "Editor selection snippet (not the full file): "
                 + str(sel.get("text", ""))[:500],
             )
-    parts.append(text)
-    return "\n".join(parts)
+        edit_review = context.get("edit_review")
+        if isinstance(edit_review, dict):
+            gid = edit_review.get("group_id")
+            eid = edit_review.get("edit_id")
+            summary = edit_review.get("summary", "")
+            parts.append(
+                "User is adjusting a proposed edit "
+                f"(group_id={gid}, edit_id={eid}): {summary}. "
+                "Use ``revise_edit`` to update that proposal when ready."
+            )
+    if memory_text.strip():
+        parts.append("Relevant writing memory:\n" + memory_text.strip())
+    if parts:
+        return "\n".join(parts) + USER_MESSAGE_SEP + text
+    return text
 
 
 def _new_stream_id() -> str:
@@ -187,13 +368,22 @@ class WritingAgentRunner:
         single active-model choice drives the orchestrator and its specialists.
         """
         plugins: list[Any] = [WritingPlugin()]
+        skill_tools: list[Any] = []
         if _ACADEMIC_SKILL_DIR.is_dir():
             plugins.append(AgentSkills(skills=[str(_ACADEMIC_SKILL_DIR)]))
+            skill_tools = get_strands_skill_tools()
 
-        tools = [*get_enabled_writing_tools(), *create_subagent_tools(model=model)]
+        tools = [
+            *get_enabled_writing_tools(),
+            *skill_tools,
+            *create_subagent_tools(model=model),
+        ]
         return Agent(
             model=model,
-            system_prompt=_system_prompt(self.project_root),
+            system_prompt=_system_prompt(
+                self.project_root,
+                auto_review=read_auto_review(self.snapshot_agent_state()),
+            ),
             tools=tools,
             plugins=plugins,
             callback_handler=None,
@@ -223,6 +413,11 @@ class WritingAgentRunner:
         self._agent = self._build_agent(self._model)
         self.restore_from_snapshot(messages, agent_state)
 
+    def switch_project_root(self, project_root: Path) -> None:
+        """Bind future tool calls and prompts to a different workspace root."""
+        self.project_root = project_root
+        self._agent = self._build_agent(self._model)
+
     @property
     def messages(self) -> list[Message]:
         return self._agent.messages
@@ -250,7 +445,10 @@ class WritingAgentRunner:
 
     def snapshot_agent_state(self) -> dict[str, Any]:
         """Export Strands ``agent.state`` (JSONSerializableDict supports ``get(None)``)."""
-        state = getattr(self._agent, "state", None)
+        agent = getattr(self, "_agent", None)
+        if agent is None:
+            return {}
+        state = getattr(agent, "state", None)
         if state is None:
             return {}
         get_fn = getattr(state, "get", None)
@@ -269,9 +467,14 @@ class WritingAgentRunner:
     ) -> None:
         self._agent.messages = list(messages)
         if not agent_state:
+            self._agent.system_prompt = _system_prompt(self.project_root, auto_review=False)
             return
         state = getattr(self._agent, "state", None)
         if state is None:
+            self._agent.system_prompt = _system_prompt(
+                self.project_root,
+                auto_review=read_auto_review(agent_state),
+            )
             return
         get_fn = getattr(state, "get", None)
         set_fn = getattr(state, "set", None)
@@ -283,10 +486,18 @@ class WritingAgentRunner:
                     delete_fn(key)
             for key, value in agent_state.items():
                 set_fn(key, value)
+            self._agent.system_prompt = _system_prompt(
+                self.project_root,
+                auto_review=read_auto_review(agent_state),
+            )
             return
         if isinstance(state, dict):
             state.clear()
             state.update(agent_state)
+            self._agent.system_prompt = _system_prompt(
+                self.project_root,
+                auto_review=read_auto_review(agent_state),
+            )
 
     def title_from_messages(self) -> str:
         for msg in self._agent.messages:
@@ -318,7 +529,13 @@ class WritingAgentRunner:
         still finish server-side but its late deltas are not forwarded.
         """
         session.pending_replacements.clear()
-        prompt = _build_user_prompt(user_text, session, context)
+        memory_text = ""
+        if invocation_extra:
+            store = invocation_extra.get("memory_store")
+            retrieve = getattr(store, "retrieve_for_prompt", None)
+            if callable(retrieve):
+                memory_text = str(retrieve(session.active_path, max_chars=2000))
+        prompt = _build_user_prompt(user_text, session, context, memory_text)
         stream_id = _new_stream_id()
         accum = StreamAccum(stream_id=stream_id)
         outbound_queue: list[dict[str, Any]] = []

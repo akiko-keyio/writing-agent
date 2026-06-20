@@ -9,6 +9,7 @@ import pytest
 
 from connection import Connection
 from handler import handle_message_events
+from memory_store import KIND_EXAMPLE
 from session_store import SessionStore
 
 DOC = "# Title\n\nWe utilize the API.\n\nFinal line.\n"
@@ -92,15 +93,58 @@ def test_group_apply_updates_buffer(tmp_path: Path) -> None:
     assert "use the API" in conn.session.open_buffers["doc.md"]
 
 
-def test_group_reject_and_delete(tmp_path: Path) -> None:
+def test_group_dismiss(tmp_path: Path) -> None:
     conn = _conn(tmp_path)
     group = _propose(conn)
-    rej = asyncio.run(_collect(conn, {"type": "group/reject", "group_id": group["id"]}))
-    assert rej[0]["group"]["status"] == "rejected"
+    res = asyncio.run(_collect(conn, {"type": "group/dismiss", "group_id": group["id"]}))
+    assert res[0]["group"]["status"] == "dismissed"
+    assert res[0]["group"]["edits"][0]["status"] == "dismissed"
+    assert conn.memory_store.list(kind=KIND_EXAMPLE) == []
 
-    group2 = _propose(conn)
-    dele = asyncio.run(_collect(conn, {"type": "group/delete", "group_id": group2["id"]}))
-    assert dele[0]["group"]["status"] == "deleted"
+
+def test_group_reject_records_negative_memory(tmp_path: Path) -> None:
+    conn = _conn(tmp_path)
+    group = _propose(conn)
+    edit_id = group["edits"][0]["id"]
+
+    res = asyncio.run(
+        _collect(
+            conn,
+            {"type": "group/reject", "group_id": group["id"], "edit_id": edit_id},
+        ),
+    )
+
+    assert res[0]["type"] == "group/update"
+    assert res[0]["group"]["edits"][0]["status"] == "dismissed"
+    examples = conn.memory_store.list(kind=KIND_EXAMPLE)
+    assert len(examples) == 1
+    assert examples[0].polarity == "negative"
+    assert examples[0].metadata["kind"] == "replace"
+
+
+def test_group_replace_edit_records_preference_memory(tmp_path: Path) -> None:
+    conn = _conn(tmp_path)
+    group = _propose(conn)
+    edit_id = group["edits"][0]["id"]
+
+    res = asyncio.run(
+        _collect(
+            conn,
+            {
+                "type": "group/replace_edit",
+                "group_id": group["id"],
+                "edit_id": edit_id,
+                "edit": {"kind": "replace", "old_text": "utilize", "new_text": "call"},
+            },
+        ),
+    )
+
+    assert res[0]["type"] == "group/update"
+    examples = conn.memory_store.list(kind=KIND_EXAMPLE)
+    assert len(examples) == 1
+    assert examples[0].polarity == "preference"
+    assert examples[0].metadata["before"] == "use"
+    assert examples[0].metadata["after"] == "call"
 
 
 def test_group_state_lists_session_groups(tmp_path: Path) -> None:
@@ -121,6 +165,34 @@ def test_document_save_writes_disk_atomically(tmp_path: Path) -> None:
     assert events[0]["ok"] is True
     saved = (tmp_path / "doc.md").read_text(encoding="utf-8")
     assert "use the API" in saved
+
+
+def test_document_save_explicit_content_overrides_buffer(tmp_path: Path) -> None:
+    # Regression: a desynced session buffer must never reach disk when the save
+    # request carries explicit content for the path.
+    conn = _conn(tmp_path)
+    conn.session.open_buffers["doc.md"] = "WRONG BUFFER CONTENT"
+    events = asyncio.run(
+        _collect(
+            conn,
+            {"type": "document/save", "path": "doc.md", "content": "# Real doc\n"},
+        )
+    )
+    assert events[0]["ok"] is True
+    assert (tmp_path / "doc.md").read_text(encoding="utf-8") == "# Real doc\n"
+    assert conn.session.open_buffers["doc.md"] == "# Real doc\n"
+
+
+def test_document_save_explicit_content_without_buffer(tmp_path: Path) -> None:
+    conn = _conn(tmp_path)
+    events = asyncio.run(
+        _collect(
+            conn,
+            {"type": "document/save", "path": "fresh.md", "content": "hello\n"},
+        )
+    )
+    assert events[0]["ok"] is True
+    assert (tmp_path / "fresh.md").read_text(encoding="utf-8") == "hello\n"
 
 
 def test_document_save_rejects_path_traversal(tmp_path: Path) -> None:

@@ -10,6 +10,7 @@ from typing import Any
 from strands import Agent
 from strands.types.tools import AgentTool
 
+from strands_community_tools import get_strands_skill_tools
 from writing_tools import READONLY_TOOLS, WRITING_TOOLS
 
 _AGENT_DIR = Path(__file__).resolve().parent
@@ -85,8 +86,13 @@ def tools_for_spec(spec: SubagentSpec) -> list:
     Read-only specialists (reviewer, check, researcher, verifier, arbiter,
     reference-list) get only read tools and can never mutate documents. A
     write-capable specialist (editor) additionally gets ``propose_edit_group``.
+
+    All specialists receive ``read_skill_resource`` when academic-writing
+    skill resources are configured (same path sandbox as the main agent).
     """
-    return list(READONLY_TOOLS) if spec.readonly else list(WRITING_TOOLS)
+    skill_tools = get_strands_skill_tools()
+    base = list(READONLY_TOOLS) if spec.readonly else list(WRITING_TOOLS)
+    return [*base, *skill_tools]
 
 
 def create_subagent_tools(

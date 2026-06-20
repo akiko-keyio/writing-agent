@@ -47,7 +47,7 @@ async def _ws_session_lifecycle() -> None:
                 json.dumps(
                     {
                         "type": "document/open",
-                        "path": "examples/test.md",
+                        "path": "test.md",
                         "document": "# Test\n",
                     },
                 ),
@@ -73,7 +73,7 @@ async def _ws_chat_turn() -> None:
             json.dumps(
                 {
                     "type": "document/open",
-                    "path": "examples/test-text.md",
+                    "path": "test-text.md",
                     "document": "Hello from buffer.\n",
                 },
             ),
@@ -84,7 +84,7 @@ async def _ws_chat_turn() -> None:
                     "type": "chat/message",
                     "text": "Reply with exactly: pong",
                     "context": {
-                        "active_path": "examples/test-text.md",
+                        "active_path": "test-text.md",
                         "buffer_snapshot": "Hello from buffer.\n",
                     },
                 },

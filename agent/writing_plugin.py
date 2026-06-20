@@ -7,7 +7,7 @@ from typing import Any
 from strands.hooks import AfterToolCallEvent, BeforeToolCallEvent
 from strands.plugins import Plugin, hook
 
-_TOOLS_WITH_OWN_END_EVENTS = frozenset({"read_file"})
+_TOOLS_WITH_OWN_END_EVENTS = frozenset({"read_document", "propose_edits", "revise_edit"})
 
 
 def _tool_id(tool_use: dict[str, Any]) -> str | None:

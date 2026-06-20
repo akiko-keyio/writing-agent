@@ -17,9 +17,9 @@ from edit_groups import (
     EditValidationError,
     apply_group,
     build_group,
-    delete_group,
+    dismiss_group,
+    reject_edit,
     refresh_group,
-    reject_group,
     replace_edit,
 )
 from project_root import normalize_workspace_path, resolve_workspace_path
@@ -133,21 +133,21 @@ class EditGroupService:
             out.append(group)
         return out
 
-    def reject(self, group_id: str) -> EditGroup:
+    def dismiss(self, group_id: str) -> EditGroup:
         group = self.store.get(group_id)
         if group is None:
             raise EditValidationError(f"Edit group not found: {group_id}")
-        reject_group(group)
+        dismiss_group(group)
         self.store.save(group)
         return group
 
-    def delete(self, group_id: str) -> EditGroup:
+    def reject_edit(self, group_id: str, edit_id: str):
         group = self.store.get(group_id)
         if group is None:
             raise EditValidationError(f"Edit group not found: {group_id}")
-        delete_group(group)
+        rejected = reject_edit(group, edit_id)
         self.store.save(group)
-        return group
+        return group, rejected
 
     def replace_edit(
         self,

@@ -1,7 +1,7 @@
 """Shared file-backed persistence helpers for local user state.
 
 All durable backend state (sessions, edit groups, memory, eval runs) lives under
-a single state root, by default ``<project_root>/.writing-agent/`` (git-ignored).
+a single state root, by default ``<repo_root>/.writing-agent/`` (git-ignored).
 These helpers provide atomic writes and recoverable reads so that future stores
 (EditGroupStore, MemoryStore) reuse one pattern instead of reinventing it.
 """
@@ -14,7 +14,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from project_root import resolve_project_root
+from project_root import resolve_repo_root
 
 STATE_DIR_ENV = "WRITING_AGENT_STATE_DIR"
 
@@ -35,7 +35,7 @@ def state_root() -> Path:
     raw = os.getenv(STATE_DIR_ENV, "").strip()
     if raw:
         return Path(raw).expanduser().resolve()
-    return (resolve_project_root() / ".writing-agent").resolve()
+    return (resolve_repo_root() / ".writing-agent").resolve()
 
 
 def ensure_dir(path: Path) -> Path:

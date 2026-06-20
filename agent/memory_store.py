@@ -4,12 +4,12 @@ Three kinds, with scopes preserved (never flattened into one bucket):
 
 - ``principle`` — global writing rules / user preferences (cross-document).
 - ``knowledge`` — facts about the current project or document.
-- ``example``  — concrete accepted / rejected / replaced edit cases (document-
+- ``example``  — concrete accepted / dismissed / replaced edit cases (document-
   scoped), which may link back to principles.
 
 Memory is visible and controllable. It is recorded from explicit edit
-decisions, never silently invented, and (in this phase) does NOT influence the
-agent's prompts — it is inspectable state only, gated by an ``enabled`` flag.
+decisions, never silently invented, and prompt retrieval is gated by an
+``enabled`` flag.
 """
 
 from __future__ import annotations
@@ -38,6 +38,20 @@ KINDS = (KIND_PRINCIPLE, KIND_KNOWLEDGE, KIND_EXAMPLE)
 
 SCOPE_GLOBAL = "global"
 SCOPE_DOCUMENT = "document"
+
+CANDIDATE_STATUS = "candidate"
+
+
+def is_candidate_principle(entry: MemoryEntry) -> bool:
+    return (
+        entry.kind == KIND_PRINCIPLE
+        and entry.metadata.get("status") == CANDIDATE_STATUS
+    )
+
+
+def is_active_principle(entry: MemoryEntry) -> bool:
+    return entry.kind == KIND_PRINCIPLE and not is_candidate_principle(entry)
+
 
 # Example polarity
 POS = "positive"
@@ -189,6 +203,64 @@ class MemoryStore:
     def export(self) -> dict[str, list[dict[str, Any]]]:
         return {kind: [e.to_dict() for e in self.list(kind=kind)] for kind in KINDS}
 
+    def retrieve_for_prompt(self, path: str | None, max_chars: int) -> str:
+        """Return relevant memory text for a chat turn within one total budget.
+
+        Priority is principle > document knowledge > recent document examples.
+        Examples are the first to be clipped because they can grow quickly.
+        """
+        if not self.is_enabled() or max_chars <= 0:
+            return ""
+
+        doc_path = path or ""
+        principles = [
+            e for e in self.list(kind=KIND_PRINCIPLE, scope=SCOPE_GLOBAL)
+            if is_active_principle(e)
+        ]
+        knowledge = [
+            *self.list(kind=KIND_KNOWLEDGE, scope=SCOPE_GLOBAL),
+            *self.list(kind=KIND_KNOWLEDGE, scope=SCOPE_DOCUMENT, path=doc_path),
+        ]
+        examples = sorted(
+            self.list(kind=KIND_EXAMPLE, scope=SCOPE_DOCUMENT, path=doc_path),
+            key=lambda e: e.created_at,
+            reverse=True,
+        )
+
+        lines: list[str] = []
+
+        def remaining_after(candidate: str) -> int:
+            current = "\n".join(lines)
+            extra = candidate if not current else "\n" + candidate
+            return max_chars - len(current) - len(extra)
+
+        def append_line(line: str) -> bool:
+            text = line.strip()
+            if not text:
+                return False
+            if remaining_after(text) < 0:
+                return False
+            lines.append(text)
+            return True
+
+        def append_section(title: str, entries: list[MemoryEntry]) -> None:
+            section_started = False
+            for entry in entries:
+                content = entry.content.strip()
+                if not content:
+                    continue
+                if not section_started:
+                    if remaining_after(title) < 0:
+                        return
+                    lines.append(title)
+                    section_started = True
+                append_line(content)
+
+        append_section("Principles:", principles)
+        append_section("Knowledge:", knowledge)
+        append_section("Examples:", examples)
+        return "\n".join(lines)
+
 
 # --------------------------------------------------------------------------
 # Learning hooks (recorded from explicit edit decisions only)
@@ -246,34 +318,30 @@ def learn_from_apply(store: MemoryStore, group: Any) -> list[MemoryEntry]:
     return out
 
 
-def learn_from_reject(store: MemoryStore, group: Any) -> list[MemoryEntry]:
-    """Rejected edits become negative examples — but not ones superseded by a
-    replacement (those are preference signals handled by ``learn_from_replace``)."""
-    if not store.is_enabled():
-        return []
-    from edit_groups import EDIT_REJECTED
+def learn_from_dismiss(store: MemoryStore, group: Any) -> list[MemoryEntry]:
+    """Group-level dismiss is neutral; per-edit reject records negative memory."""
+    return []
 
-    out: list[MemoryEntry] = []
-    for edit in group.edits:
-        if edit.status != EDIT_REJECTED or edit.replaced_by:
-            continue
-        out.append(
-            store.add(
-                _example(
-                    group_id=group.id,
-                    path=group.path,
-                    edit_id=edit.id,
-                    polarity=NEG,
-                    content=f"Rejected {edit.kind}: '{edit.old_text}' -> '{edit.new_text}'",
-                    metadata={
-                        "kind": edit.kind,
-                        "old_text": edit.old_text,
-                        "new_text": edit.new_text,
-                    },
-                ),
-            ),
-        )
-    return out
+
+def learn_from_reject(store: MemoryStore, group: Any, edit: Any) -> MemoryEntry | None:
+    """A rejected edit is a negative example for the current document."""
+    if not store.is_enabled():
+        return None
+    return store.add(
+        _example(
+            group_id=group.id,
+            path=group.path,
+            edit_id=edit.id,
+            polarity=NEG,
+            content=f"Rejected {edit.kind}: '{edit.old_text}' -> '{edit.new_text}'",
+            metadata={
+                "kind": edit.kind,
+                "old_text": edit.old_text,
+                "new_text": edit.new_text,
+                "rationale": getattr(edit, "rationale", ""),
+            },
+        ),
+    )
 
 
 def learn_from_replace(
@@ -303,3 +371,53 @@ def learn_from_replace(
             },
         ),
     )
+
+
+def propose_candidate_principle(
+    store: MemoryStore,
+    *,
+    content: str,
+    rationale: str = "",
+    case_ids: list[str] | None = None,
+) -> MemoryEntry:
+    """Agent-proposed principle awaiting user confirmation."""
+    links = list(case_ids or [])
+    return store.add(
+        MemoryEntry(
+            id="",
+            kind=KIND_PRINCIPLE,
+            scope=SCOPE_GLOBAL,
+            content=content.strip(),
+            source="propose_principle",
+            links=links,
+            metadata={
+                "status": CANDIDATE_STATUS,
+                "rationale": rationale.strip(),
+            },
+        ),
+    )
+
+
+def accept_candidate_principle(
+    store: MemoryStore,
+    entry_id: str,
+    *,
+    content: str | None = None,
+) -> MemoryEntry | None:
+    """Promote a candidate to an active principle."""
+    entry = store.get(entry_id)
+    if entry is None or not is_candidate_principle(entry):
+        return None
+    entry.metadata = {**entry.metadata, "status": "confirmed"}
+    if content and content.strip():
+        entry.content = content.strip()
+    atomic_write_json(store._path(entry.kind, entry.id), entry.to_dict())
+    return entry
+
+
+def reject_candidate_principle(store: MemoryStore, entry_id: str) -> bool:
+    """Discard a candidate principle."""
+    entry = store.get(entry_id)
+    if entry is None or not is_candidate_principle(entry):
+        return False
+    return store.delete(entry_id)

@@ -106,26 +106,29 @@ def handle_group_apply(conn: "Connection", raw: dict[str, Any]) -> list[dict[str
     return events
 
 
-def handle_group_reject(conn: "Connection", raw: dict[str, Any]) -> list[dict[str, Any]]:
+def handle_group_dismiss(conn: "Connection", raw: dict[str, Any]) -> list[dict[str, Any]]:
     group_id = str(raw.get("group_id", "")).strip()
     if not group_id:
         return [_error("group_id is required", code="invalid_group")]
     try:
-        group = conn.edit_service.reject(group_id)
+        group = conn.edit_service.dismiss(group_id)
     except EditValidationError as exc:
-        return [_error(str(exc), code="reject_failed")]
-    _learn(conn, "reject", group)
+        return [_error(str(exc), code="dismiss_failed")]
+    _persist_session(conn)
     return [_group_update(group)]
 
 
-def handle_group_delete(conn: "Connection", raw: dict[str, Any]) -> list[dict[str, Any]]:
+def handle_group_reject(conn: "Connection", raw: dict[str, Any]) -> list[dict[str, Any]]:
     group_id = str(raw.get("group_id", "")).strip()
-    if not group_id:
-        return [_error("group_id is required", code="invalid_group")]
+    edit_id = str(raw.get("edit_id", "")).strip()
+    if not group_id or not edit_id:
+        return [_error("group_id and edit_id are required", code="invalid_group")]
     try:
-        group = conn.edit_service.delete(group_id)
+        group, edit = conn.edit_service.reject_edit(group_id, edit_id)
     except EditValidationError as exc:
-        return [_error(str(exc), code="delete_failed")]
+        return [_error(str(exc), code="reject_failed")]
+    _learn_reject(conn, group, edit)
+    _persist_session(conn)
     return [_group_update(group)]
 
 
@@ -143,6 +146,7 @@ def handle_group_replace_edit(conn: "Connection", raw: dict[str, Any]) -> list[d
         return [_error(str(exc), code="replace_failed")]
     if old_edit is not None:
         _learn_replace(conn, group, old_edit, new)
+    _persist_session(conn)
     return [_group_update(group)]
 
 
@@ -189,6 +193,28 @@ def handle_memory_update(conn: "Connection", raw: dict[str, Any]) -> list[dict[s
         store.delete(entry_id)
     elif action == "clear_all":
         store.clear()
+    elif action == "accept_candidate":
+        from memory_store import accept_candidate_principle
+
+        entry_id = str(raw.get("id", "")).strip()
+        if not entry_id:
+            return [_error("id is required", code="invalid_memory")]
+        content = raw.get("content")
+        updated = accept_candidate_principle(
+            store,
+            entry_id,
+            content=str(content) if isinstance(content, str) else None,
+        )
+        if updated is None:
+            return [_error("Candidate principle not found", code="invalid_memory")]
+    elif action == "reject_candidate":
+        from memory_store import reject_candidate_principle
+
+        entry_id = str(raw.get("id", "")).strip()
+        if not entry_id:
+            return [_error("id is required", code="invalid_memory")]
+        if not reject_candidate_principle(store, entry_id):
+            return [_error("Candidate principle not found", code="invalid_memory")]
     else:
         return [_error(f"Unknown memory action: {action}", code="invalid_memory")]
 
@@ -211,10 +237,19 @@ def handle_document_save(conn: "Connection", raw: dict[str, Any]) -> list[dict[s
     except ValueError as exc:
         return [_error(str(exc), code="invalid_path")]
 
-    if norm not in conn.session.open_buffers:
+    # Prefer the explicit content sent with the save request: it is the exact
+    # text the editor intends to persist for this path. Falling back to the
+    # shared session buffer is unsafe if that buffer was set for a different
+    # document (path/content desync), so an explicit content always wins.
+    raw_content = raw.get("content")
+    if isinstance(raw_content, str):
+        content = raw_content
+        conn.session.open_buffers[norm] = content
+    elif norm in conn.session.open_buffers:
+        content = conn.session.open_buffers[norm]
+    else:
         return [_error(f"No open buffer for {norm}", code="no_buffer")]
 
-    content = conn.session.open_buffers[norm]
     try:
         atomic_write_text(abs_path, content)
     except OSError as exc:
@@ -229,14 +264,24 @@ def _learn(conn: "Connection", decision: str, group: EditGroup) -> None:
     if store is None:
         return
     try:
-        from memory_store import learn_from_apply, learn_from_reject
+        from memory_store import learn_from_apply
 
         if decision == "apply":
             learn_from_apply(store, group)
-        elif decision == "reject":
-            learn_from_reject(store, group)
     except Exception:  # noqa: BLE001
         logger.exception("memory learning failed (%s)", decision)
+
+
+def _learn_reject(conn: "Connection", group: EditGroup, edit: Any) -> None:
+    store = getattr(conn, "memory_store", None)
+    if store is None:
+        return
+    try:
+        from memory_store import learn_from_reject
+
+        learn_from_reject(store, group, edit)
+    except Exception:  # noqa: BLE001
+        logger.exception("memory learning failed (reject)")
 
 
 def _learn_replace(conn: "Connection", group: EditGroup, old_edit: Any, new_edit: Any) -> None:
@@ -258,5 +303,4 @@ def _persist_session(conn: "Connection") -> None:
         conn.current_session_id,
         conn.runner,
         conn.session,
-        title=conn.runner.title_from_messages(),
     )

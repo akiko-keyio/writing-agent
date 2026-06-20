@@ -47,15 +47,23 @@ def test_all_remaining_specialists_readonly() -> None:
     for spec in load_subagent_specs():
         assert spec.readonly is True, f"{spec.name} must be readonly"
         tools = {t.tool_name for t in tools_for_spec(spec)}
-        assert "propose_edit_group" not in tools, f"{spec.name} must not write"
-        assert "read_file" in tools
+        assert "propose_edits" not in tools, f"{spec.name} must not write"
+        assert "read_document" in tools
+        assert "search_references" in tools
+        assert "check_references" in tools
+        assert "read_skill_resource" in tools
 
 
 def test_researcher_cannot_mutate_documents() -> None:
     specs = {s.name: s for s in load_subagent_specs()}
     tools = {t.tool_name for t in tools_for_spec(specs["researcher"])}
-    assert "propose_edit_group" not in tools
-    assert "search_references" in tools
+    assert "propose_edits" not in tools
+    assert tools == {
+        "read_document",
+        "read_skill_resource",
+        "search_references",
+        "check_references",
+    }
 
 
 # ---- enable/disable -------------------------------------------------------
@@ -90,62 +98,19 @@ def test_unknown_subagent_toggle_raises(subagents_yaml: Path) -> None:
         set_subagent_enabled("does-not-exist", True)
 
 
-# ---- evidence retrieval ---------------------------------------------------
+# ---- reference check (offline) --------------------------------------------
 
 
-def test_check_consistency_tool_flags_issues(tmp_path: Path) -> None:
-    from protocol import SessionState
-    from writing_tools import check_consistency
+def test_reference_check_offline(tmp_path: Path) -> None:
+    from reference_check import check_document
 
-    session = SessionState()
-    session.open_buffers["doc.md"] = (
-        "# Title\n\nThe colour model. We keep color consistent.   \n\n\n\nEnd.\n"
-    )
-
-    class _Ctx:
-        invocation_state = {"session": session, "project_root": tmp_path}
-        tool_use = {"name": "check_consistency", "toolUseId": "t1"}
-
-    result = check_consistency("doc.md", _Ctx())  # type: ignore[arg-type]
-    assert result["status"] == "success"
-    text = result["content"][0]["text"]
-    assert "spelling variants" in text  # colour + color
-    assert "trailing whitespace" in text
-    assert "blank lines" in text
-
-
-def test_check_consistency_clean_document(tmp_path: Path) -> None:
-    from protocol import SessionState
-    from writing_tools import check_consistency
-
-    session = SessionState()
-    session.open_buffers["doc.md"] = "# Title\n\nA clean paragraph.\n"
-
-    class _Ctx:
-        invocation_state = {"session": session, "project_root": tmp_path}
-        tool_use = {"name": "check_consistency", "toolUseId": "t2"}
-
-    result = check_consistency("doc.md", _Ctx())  # type: ignore[arg-type]
-    assert "No mechanical consistency issues" in result["content"][0]["text"]
-
-
-def test_search_references_retrieves_fixture(tmp_path: Path) -> None:
-    from writing_tools import search_references
-
-    refs = tmp_path / "refs"
+    refs = tmp_path / "references"
     refs.mkdir()
-    (refs / "paper.md").write_text(
-        "Transformers improved translation BLEU by 4 points over RNNs.\n",
-        encoding="utf-8",
-    )
-
-    class _Ctx:
-        invocation_state = {"references_dir": str(refs)}
-        tool_use = {"name": "search_references", "toolUseId": "t1"}
-
-    result = search_references("translation BLEU", _Ctx())  # type: ignore[arg-type]
-    assert result["status"] == "success"
-    assert "BLEU" in result["content"][0]["text"]
+    (refs / "ref.md").write_text("10.1038/nature12373", encoding="utf-8")
+    doc = tmp_path / "doc.md"
+    doc.write_text("See doi:10.1038/nature12373", encoding="utf-8")
+    report = check_document(doc, project_root=tmp_path, fetcher=None, online=False)
+    assert report.ok
 
 
 # ---- verifier classification ---------------------------------------------

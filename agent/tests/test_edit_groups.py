@@ -10,11 +10,11 @@ from edit_group_service import EditGroupService
 from edit_group_store import EditGroupStore
 from edit_groups import (
     EDIT_APPLIED,
-    EDIT_REPLACED,
+    EDIT_DISMISSED,
     EDIT_STALE,
     GROUP_APPLIED,
+    GROUP_DISMISSED,
     GROUP_PARTIALLY_APPLIED,
-    GROUP_REJECTED,
     GROUP_STALE,
     EditValidationError,
     apply_group,
@@ -234,7 +234,7 @@ def test_replace_edit_links_lineage(tmp_path: Path) -> None:
         {"kind": "replace", "old_text": "utilize", "new_text": "employ"},
     )
     old = group.get_edit(old_id)
-    assert old.status == EDIT_REPLACED
+    assert old.status == EDIT_DISMISSED
     assert old.replaced_by == new_edit.id
     assert new_edit.replaces == old_id
 
@@ -260,7 +260,7 @@ def test_service_apply_updates_buffer_not_disk(tmp_path: Path) -> None:
     assert disk.read_text(encoding="utf-8") == DOC
 
 
-def test_service_reject_updates_status(tmp_path: Path) -> None:
+def test_service_dismiss_updates_status(tmp_path: Path) -> None:
     svc = _service(tmp_path)
     session = _session()
     group = svc.propose(
@@ -269,8 +269,9 @@ def test_service_reject_updates_status(tmp_path: Path) -> None:
         path="doc.md",
         edits=[{"kind": "replace", "old_text": "utilize", "new_text": "use"}],
     )
-    rejected = svc.reject(group.id)
-    assert rejected.status == GROUP_REJECTED
+    dismissed = svc.dismiss(group.id)
+    assert dismissed.status == GROUP_DISMISSED
+    assert dismissed.edits[0].status == EDIT_DISMISSED
 
 
 def test_groups_scoped_and_persist(tmp_path: Path) -> None:

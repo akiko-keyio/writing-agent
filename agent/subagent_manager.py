@@ -17,8 +17,10 @@ _SUBAGENTS_FILE = Path(__file__).resolve().parent.parent / "subagents.yaml"
 
 
 def load_subagent_prefs() -> dict[str, bool]:
-    """Map subagent name -> enabled. Unknown/new subagents default to enabled."""
-    enabled: dict[str, bool] = {spec.name: True for spec in load_subagent_specs()}
+    """Map subagent name -> enabled. Unknown/new subagents default by spec."""
+    enabled: dict[str, bool] = {
+        spec.name: spec.name != "researcher" for spec in load_subagent_specs()
+    }
     if not _SUBAGENTS_FILE.exists():
         return enabled
 

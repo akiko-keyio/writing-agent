@@ -58,7 +58,7 @@ def test_persist_tool_use_and_tool_result_blocks() -> None:
                 {
                     "toolUse": {
                         "toolUseId": "tu-1",
-                        "name": "read_file",
+                        "name": "read_document",
                         "input": {"path": "a.md"},
                     },
                 },
@@ -84,7 +84,7 @@ def test_persist_tool_use_and_tool_result_blocks() -> None:
     assert snap is not None
     assert len(snap.messages) == 3
     tool_use_block = snap.messages[1]["content"][0]
-    assert tool_use_block["toolUse"]["name"] == "read_file"
+    assert tool_use_block["toolUse"]["name"] == "read_document"
     assert tool_use_block["toolUse"]["input"] == {"path": "a.md"}
     tool_result_block = snap.messages[2]["content"][0]
     assert tool_result_block["toolResult"]["toolUseId"] == "tu-1"
@@ -95,7 +95,13 @@ def test_corrupt_session_file_is_recoverable() -> None:
     store = SessionStore()
     sid = store.create_empty()
     # Corrupt the file on disk.
-    path = state_root() / "sessions" / f"{sid}.json"
+    path = (
+        state_root()
+        / "workspaces"
+        / store.workspace_id
+        / "sessions"
+        / f"{sid}.json"
+    )
     path.write_text("{not valid json", encoding="utf-8")
 
     # load() returns None, list_all() skips it — no crash.

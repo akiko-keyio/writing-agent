@@ -34,9 +34,9 @@ def test_notify_tool_end_check_completed():
     assert "preview" in queue[0]["output"]
 
 
-def test_notify_tool_end_skips_read_file():
+def test_notify_tool_end_skips_read_document():
     event = SimpleNamespace(
-        tool_use={"name": "read_file", "toolUseId": "tu-1", "input": {}},
+        tool_use={"name": "read_document", "toolUseId": "tu-1", "input": {}},
         invocation_state={},
         result={"status": "success"},
         exception=None,

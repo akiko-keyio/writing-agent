@@ -8,6 +8,7 @@ instead of guessing.
 from __future__ import annotations
 
 import logging
+import shutil
 from pathlib import Path
 
 from edit_groups import EditGroup
@@ -18,17 +19,45 @@ from storage import (
     read_json,
     state_root,
 )
+from workspace_context import default_workspace_context, sanitize_workspace_id
 
 logger = logging.getLogger(__name__)
 
 
 class EditGroupStore:
-    def __init__(self, base_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        base_dir: Path | None = None,
+        *,
+        workspace_id: str | None = None,
+    ) -> None:
         root = base_dir if base_dir is not None else state_root()
-        self._dir = ensure_dir(Path(root) / "edit-groups")
+        self._base_dir = Path(root)
+        self.workspace_id = sanitize_workspace_id(workspace_id) if workspace_id else None
+        if self.workspace_id:
+            self._dir = ensure_dir(
+                self._base_dir / "workspaces" / self.workspace_id / "edit-groups"
+            )
+            self._migrate_legacy_default_groups()
+        else:
+            self._dir = ensure_dir(self._base_dir / "edit-groups")
+
+    def for_workspace(self, workspace_id: str) -> "EditGroupStore":
+        return EditGroupStore(self._base_dir, workspace_id=workspace_id)
 
     def _path(self, group_id: str) -> Path:
         return self._dir / f"{group_id}.json"
+
+    def _migrate_legacy_default_groups(self) -> None:
+        if self.workspace_id != default_workspace_context().workspace_id:
+            return
+        legacy_dir = self._base_dir / "edit-groups"
+        if not legacy_dir.is_dir():
+            return
+        for legacy_file in legacy_dir.glob("*.json"):
+            target = self._dir / legacy_file.name
+            if not target.exists():
+                shutil.copy2(legacy_file, target)
 
     def save(self, group: EditGroup) -> None:
         atomic_write_json(self._path(group.id), group.to_dict())

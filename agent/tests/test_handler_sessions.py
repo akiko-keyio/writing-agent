@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 from connection import Connection
 from handler import _apply_chat_context_buffers, handle_message_events
@@ -87,3 +88,75 @@ def test_session_switch_restores_buffers() -> None:
     assert events[0]["type"] == "session/restored"
     assert conn.session.open_buffers["x.md"] == "buffered"
     assert len(conn.runner.messages) == 1
+
+
+def test_workspace_switch_scopes_session_list(tmp_path: Path) -> None:
+    store = SessionStore()
+    conn = Connection.create(store)
+    default_root = conn.project_root
+
+    created = asyncio.run(_collect(conn, {"type": "session/create"}))
+    default_sid = created[0]["session_id"]
+
+    other_root = tmp_path / "paper"
+    other_root.mkdir()
+    switched = asyncio.run(
+        _collect(
+            conn,
+            {
+                "type": "workspace/switch",
+                "project_root": str(other_root),
+                "display_name": "paper",
+            },
+        ),
+    )
+    assert switched[0]["type"] == "workspace/switched"
+    assert switched[0]["sessions"] == []
+    assert conn.project_root == other_root
+
+    listed = asyncio.run(_collect(conn, {"type": "session/list"}))
+    assert listed[0]["sessions"] == []
+
+    created_other = asyncio.run(_collect(conn, {"type": "session/create"}))
+    other_sid = created_other[0]["session_id"]
+    assert other_sid != default_sid
+
+    asyncio.run(
+        _collect(
+            conn,
+            {
+                "type": "workspace/switch",
+                "project_root": str(default_root),
+                "display_name": "Examples",
+            },
+        ),
+    )
+    listed_default = asyncio.run(_collect(conn, {"type": "session/list"}))
+    assert [s["session_id"] for s in listed_default[0]["sessions"]] == [default_sid]
+
+
+def test_session_switch_rejects_other_workspace_session(tmp_path: Path) -> None:
+    store = SessionStore()
+    conn = Connection.create(store)
+
+    created = asyncio.run(_collect(conn, {"type": "session/create"}))
+    default_sid = created[0]["session_id"]
+
+    other_root = tmp_path / "other"
+    other_root.mkdir()
+    asyncio.run(
+        _collect(
+            conn,
+            {
+                "type": "workspace/switch",
+                "project_root": str(other_root),
+                "display_name": "other",
+            },
+        ),
+    )
+
+    events = asyncio.run(
+        _collect(conn, {"type": "session/switch", "session_id": default_sid}),
+    )
+    assert events[0]["type"] == "error"
+    assert events[0]["message"] == "Session not found"

@@ -13,10 +13,12 @@ from edit_group_store import EditGroupStore
 from handler import handle_message_events
 from memory_store import (
     KIND_EXAMPLE,
+    KIND_KNOWLEDGE,
+    KIND_PRINCIPLE,
     MemoryEntry,
     MemoryStore,
     learn_from_apply,
-    learn_from_reject,
+    learn_from_dismiss,
     learn_from_replace,
 )
 from session_store import SessionStore
@@ -70,6 +72,104 @@ def test_memory_can_be_disabled() -> None:
     assert MemoryStore().is_enabled() is False
 
 
+def test_retrieve_for_prompt_includes_enabled_relevant_memory() -> None:
+    store = MemoryStore()
+    store.add(
+        MemoryEntry(
+            id="",
+            kind=KIND_PRINCIPLE,
+            scope="global",
+            content="Prefer active voice.",
+        ),
+    )
+    store.add(
+        MemoryEntry(
+            id="",
+            kind=KIND_KNOWLEDGE,
+            scope="document",
+            path="doc.md",
+            content="The target reader knows diffusion models.",
+        ),
+    )
+    store.add(
+        MemoryEntry(
+            id="",
+            kind=KIND_EXAMPLE,
+            scope="document",
+            path="doc.md",
+            content="Accepted replace: 'utilizes' -> 'uses'",
+        ),
+    )
+    store.add(
+        MemoryEntry(
+            id="",
+            kind=KIND_EXAMPLE,
+            scope="document",
+            path="other.md",
+            content="Do not leak this other document example.",
+        ),
+    )
+
+    prompt_memory = store.retrieve_for_prompt("doc.md", max_chars=1000)
+
+    assert "Prefer active voice." in prompt_memory
+    assert "The target reader knows diffusion models." in prompt_memory
+    assert "Accepted replace" in prompt_memory
+    assert "Do not leak" not in prompt_memory
+
+
+def test_retrieve_for_prompt_obeys_priority_budget() -> None:
+    store = MemoryStore()
+    store.add(
+        MemoryEntry(
+            id="",
+            kind=KIND_PRINCIPLE,
+            scope="global",
+            content="Prefer active voice.",
+        ),
+    )
+    store.add(
+        MemoryEntry(
+            id="",
+            kind=KIND_KNOWLEDGE,
+            scope="document",
+            path="doc.md",
+            content="Reader background: signal processing.",
+        ),
+    )
+    store.add(
+        MemoryEntry(
+            id="",
+            kind=KIND_EXAMPLE,
+            scope="document",
+            path="doc.md",
+            content="Accepted verbose example that should be clipped first.",
+        ),
+    )
+
+    prompt_memory = store.retrieve_for_prompt("doc.md", max_chars=90)
+
+    assert len(prompt_memory) <= 90
+    assert "Prefer active voice." in prompt_memory
+    assert "Reader background" in prompt_memory
+    assert "verbose example" not in prompt_memory
+
+
+def test_retrieve_for_prompt_returns_empty_when_disabled() -> None:
+    store = MemoryStore()
+    store.add(
+        MemoryEntry(
+            id="",
+            kind=KIND_PRINCIPLE,
+            scope="global",
+            content="Prefer active voice.",
+        ),
+    )
+    store.set_enabled(False)
+
+    assert store.retrieve_for_prompt("doc.md", max_chars=1000) == ""
+
+
 # ---- learning hooks -------------------------------------------------------
 
 
@@ -98,7 +198,7 @@ def test_accepted_edit_becomes_positive_example(tmp_path: Path) -> None:
     assert examples[0].polarity == "positive"
 
 
-def test_rejected_edit_is_not_positive(tmp_path: Path) -> None:
+def test_dismissed_group_writes_no_memory(tmp_path: Path) -> None:
     conn = _conn(tmp_path)
     events = asyncio.run(
         _collect(
@@ -117,11 +217,9 @@ def test_rejected_edit_is_not_positive(tmp_path: Path) -> None:
         ),
     )
     gid = events[0]["group"]["id"]
-    asyncio.run(_collect(conn, {"type": "group/reject", "group_id": gid}))
+    asyncio.run(_collect(conn, {"type": "group/dismiss", "group_id": gid}))
     examples = conn.memory_store.list(kind=KIND_EXAMPLE)
-    assert len(examples) == 1
-    assert examples[0].polarity == "negative"
-    assert all(e.polarity != "positive" for e in examples)
+    assert examples == []
 
 
 def test_replaced_edit_records_preference(tmp_path: Path) -> None:
@@ -239,3 +337,66 @@ def test_memory_read_and_update_routes(tmp_path: Path) -> None:
         _collect(conn, {"type": "memory/update", "action": "set_enabled", "enabled": False}),
     )
     assert disabled[0]["enabled"] is False
+
+
+def test_candidate_principle_not_in_prompt() -> None:
+    from memory_store import propose_candidate_principle
+
+    store = MemoryStore()
+    propose_candidate_principle(
+        store,
+        content="Prefer active voice.",
+        rationale="From rejected edits.",
+        case_ids=["m-1"],
+    )
+    prompt = store.retrieve_for_prompt("doc.md", max_chars=2000)
+    assert "Prefer active voice." not in prompt
+
+
+def test_accept_candidate_promotes_to_prompt() -> None:
+    from memory_store import accept_candidate_principle, propose_candidate_principle
+
+    store = MemoryStore()
+    entry = propose_candidate_principle(
+        store,
+        content="Prefer 'use' over 'utilize'.",
+        case_ids=[],
+    )
+    accept_candidate_principle(store, entry.id)
+    prompt = store.retrieve_for_prompt("doc.md", max_chars=2000)
+    assert "Prefer 'use' over 'utilize'." in prompt
+
+
+def test_memory_accept_reject_candidate_routes(tmp_path: Path) -> None:
+    from memory_store import CANDIDATE_STATUS, propose_candidate_principle
+
+    conn = _conn(tmp_path)
+    entry = propose_candidate_principle(
+        conn.memory_store,
+        content="Keep one claim per sentence.",
+        case_ids=[],
+    )
+    accepted = asyncio.run(
+        _collect(
+            conn,
+            {"type": "memory/update", "action": "accept_candidate", "id": entry.id},
+        ),
+    )
+    principles = accepted[0]["memory"]["principle"]
+    assert any(
+        p["id"] == entry.id and p.get("metadata", {}).get("status") != CANDIDATE_STATUS
+        for p in principles
+    )
+
+    entry2 = propose_candidate_principle(
+        conn.memory_store,
+        content="Discard me.",
+        case_ids=[],
+    )
+    asyncio.run(
+        _collect(
+            conn,
+            {"type": "memory/update", "action": "reject_candidate", "id": entry2.id},
+        ),
+    )
+    assert conn.memory_store.get(entry2.id) is None

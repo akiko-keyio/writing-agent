@@ -12,10 +12,23 @@ class StreamAccum:
     text_parts: list[str] = field(default_factory=list)
     reasoning_parts: list[str] = field(default_factory=list)
     tool_ids_seen: set[str] = field(default_factory=set)
+    tool_names: dict[str, str] = field(default_factory=dict)
 
     @property
     def text(self) -> str:
         return "".join(self.text_parts)
+
+
+def _remember_tool_name(accum: StreamAccum, tool_id: str, name: str) -> str:
+    cleaned = name.strip()
+    if cleaned and cleaned != "tool":
+        accum.tool_names[tool_id] = cleaned
+        return cleaned
+    return accum.tool_names.get(tool_id, cleaned or "tool")
+
+
+def _resolve_tool_name(accum: StreamAccum, tool_id: str, name: str) -> str:
+    return _remember_tool_name(accum, tool_id, name)
 
 
 def _tool_update_message(
@@ -56,28 +69,32 @@ def strands_callback_to_ws(
         ctu = event.get("current_tool_use")
         if isinstance(ctu, dict):
             tool_id = str(ctu.get("toolUseId") or ctu.get("tool_use_id") or "")
-            name = str(ctu.get("name") or "tool")
-            if tool_id and tool_id not in accum.tool_ids_seen:
-                accum.tool_ids_seen.add(tool_id)
-                out.append(
-                    _tool_update_message(
-                        accum,
-                        tool_id,
-                        name,
-                        "running",
-                        input_payload=ctu.get("input"),
-                    ),
-                )
-            elif tool_id:
-                out.append(
-                    _tool_update_message(
-                        accum,
-                        tool_id,
-                        name,
-                        "running",
-                        input_payload=ctu.get("input"),
-                    ),
-                )
+            raw_name = str(ctu.get("name") or "")
+            if not tool_id:
+                return out
+            name = _resolve_tool_name(accum, tool_id, raw_name)
+            if raw_name and raw_name != "tool":
+                if tool_id not in accum.tool_ids_seen:
+                    accum.tool_ids_seen.add(tool_id)
+                    out.append(
+                        _tool_update_message(
+                            accum,
+                            tool_id,
+                            name,
+                            "running",
+                            input_payload=ctu.get("input"),
+                        ),
+                    )
+                elif ctu.get("input") is not None:
+                    out.append(
+                        _tool_update_message(
+                            accum,
+                            tool_id,
+                            name,
+                            "running",
+                            input_payload=ctu.get("input"),
+                        ),
+                    )
         return out
 
     reasoning = event.get("reasoningText")
@@ -119,22 +136,32 @@ def queue_event_to_ws(
             return []
         if event_type == "chat/tool_start":
             accum.tool_ids_seen.add(tool_id)
+            name = _remember_tool_name(
+                accum,
+                tool_id,
+                str(payload.get("name", "tool")),
+            )
             return [
                 _tool_update_message(
                     accum,
                     tool_id,
-                    str(payload.get("name", "tool")),
+                    name,
                     "running",
                     input_payload=payload.get("input"),
                 ),
             ]
         status = str(payload.get("status", "completed"))
         ws_status = "error" if status == "error" else "completed"
+        name = _resolve_tool_name(
+            accum,
+            tool_id,
+            str(payload.get("name", "tool")),
+        )
         return [
             _tool_update_message(
                 accum,
                 tool_id,
-                str(payload.get("name", "tool")),
+                name,
                 ws_status,
                 input_payload=payload.get("input"),
                 output=payload.get("output"),

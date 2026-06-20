@@ -15,7 +15,7 @@ from handler import handle_message_events
 from protocol import SessionState
 from session_store import SessionStore
 from strands_runner import WritingAgentRunner
-from writing_tools import propose_edit_group
+from writing_tools import propose_edits
 
 DOC = "# Title\n\nWe utilize the API to fetch data.\n\nFinal line.\n"
 
@@ -42,7 +42,7 @@ def _ctx(tmp_path: Path, session: SessionState, queue: list) -> _Ctx:
             "edit_service": service,
             "request_id": "rid-1",
         },
-        tool_use={"name": "propose_edit_group", "toolUseId": "tu-1"},
+        tool_use={"name": "propose_edits", "toolUseId": "tu-1"},
     )
 
 
@@ -52,7 +52,7 @@ def test_direct_tool_call_creates_group(tmp_path: Path) -> None:
     queue: list = []
     ctx = _ctx(tmp_path, session, queue)
 
-    result = propose_edit_group(
+    result = propose_edits(
         "doc.md",
         [{"kind": "replace", "old_text": "utilize", "new_text": "use"}],
         ctx,  # type: ignore[arg-type]
@@ -72,7 +72,7 @@ def test_invalid_tool_input_returns_structured_error(tmp_path: Path) -> None:
     queue: list = []
     ctx = _ctx(tmp_path, session, queue)
 
-    result = propose_edit_group(
+    result = propose_edits(
         "doc.md",
         [{"kind": "replace", "old_text": "does-not-exist", "new_text": "x"}],
         ctx,  # type: ignore[arg-type]
@@ -99,7 +99,7 @@ def test_fake_chat_turn_proposes_group_without_mutating_doc(tmp_path: Path) -> N
                 FakeTurn(
                     tool_calls=[
                         FakeToolCall(
-                            name="propose_edit_group",
+                            name="propose_edits",
                             tool_input={
                                 "path": "doc.md",
                                 "title": "Tighten wording",
@@ -139,9 +139,9 @@ def test_fake_chat_turn_proposes_group_without_mutating_doc(tmp_path: Path) -> N
 
 
 def test_subagents_do_not_get_write_tools() -> None:
-    # Read-only specialists must not receive propose_edit_group.
+    # Read-only specialists must not receive propose_edits.
     from writing_tools import READONLY_TOOLS
 
     names = {t.tool_name for t in READONLY_TOOLS}
-    assert "read_file" in names
-    assert "propose_edit_group" not in names
+    assert "read_document" in names
+    assert "propose_edits" not in names

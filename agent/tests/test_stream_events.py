@@ -22,7 +22,7 @@ def test_tool_use_stream():
             "type": "tool_use_stream",
             "current_tool_use": {
                 "toolUseId": "tu-1",
-                "name": "read_file",
+                "name": "read_document",
                 "input": {"path": "a.md"},
             },
         },
@@ -35,6 +35,15 @@ def test_tool_use_stream():
 
 def test_queue_tool_end():
     accum = StreamAccum(stream_id="s-4")
+    queue_event_to_ws(
+        {
+            "type": "chat/tool_start",
+            "tool_id": "tu-1",
+            "name": "read_document",
+            "input": {"path": "a.md"},
+        },
+        accum,
+    )
     out = queue_event_to_ws(
         {
             "type": "chat/tool_end",
@@ -45,3 +54,32 @@ def test_queue_tool_end():
         accum,
     )
     assert out[0]["status"] == "completed"
+    assert out[0]["name"] == "read_document"
+
+
+def test_tool_use_stream_skips_placeholder_name_until_known():
+    accum = StreamAccum(stream_id="s-5")
+    assert (
+        strands_callback_to_ws(
+            {
+                "type": "tool_use_stream",
+                "current_tool_use": {
+                    "toolUseId": "tu-2",
+                    "name": "",
+                    "input": {},
+                },
+            },
+            accum,
+        )
+        == []
+    )
+    out = queue_event_to_ws(
+        {
+            "type": "chat/tool_start",
+            "tool_id": "tu-2",
+            "name": "read_document",
+            "input": {"path": "a.md"},
+        },
+        accum,
+    )
+    assert out[0]["name"] == "read_document"

@@ -10,6 +10,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "strands-agents>=1.42.0",
     "pyyaml>=6.0",
+    "strands-agents-tools>=0.8.1",
 ]
 
 [project.scripts]
