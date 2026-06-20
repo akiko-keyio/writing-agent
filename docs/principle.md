@@ -6,88 +6,126 @@ A writing agent helps an author shape their document for its reader.
 
 ## Constraints
 
-The writing agent operates under six constraints — three from the LLM, three from the human:
+**Task**
 
-1. LLM output depends on input context.
-2. LLM context and attention are limited.
-3. LLM can be confidently wrong.
-4. Human attention is scarce.
-5. Human intent may be vague or still forming.
-6. Blind spots cannot be self-detected.
+1. Writer and reader bring different knowledge.
+2. Writing conveys information in one direction.
+3. Writing quality cannot be mechanically verified.
 
-## Procedure
+**Model**
 
-Each step responds to one or more constraints:
+4. The model knows only what it is shown.
+5. Context and attention are limited.
+6. Can be confidently wrong.
 
-1. Gather minimal necessary context: intent, reader, domain, style. [#1, #2]
-2. Structure ideas when intent is unclear. [#5]
-3. Verify factual claims against external sources. [#3]
-4. Simulate the target reader's experience. [#6]
-5. Present changes for thorough yet efficient user review. [#3, #4]
-6. Learn reliably from user decisions. [#1]
+**Human**
 
-gather → structure → verify → simulate → present → learn
+7. Attention is scarce.
+8. Intent is vague, still forming, and shifts as the document develops.
 
----
+## Operations
 
-## 5. Review
+An agent assists writing through five operations, performed as needed and in no fixed order. The constraints above are why this is hard; the design points below are how each operation works around them.
 
-Goals:
-1. User reviews edits intuitively and quickly, or discusses them with agent.
-2. Agent learns from resolved edits without ambiguity.
+### Collect project context
 
-Design:
-- Document remains the original text until user applies a group. (1)
-- Agent proposes edits grouped by issue, floating above chat. (1, 2)
-- An edit is a proposed insertion, deletion, or replacement. (1)
-- For each edit:
-  - User can delete it. (1)
-  - User can request adjustment or explanation in chat. (1)
-  - Adjustment: agent proposes a new edit with `replaces` pointer to the old. Old edit becomes deleted. (1, 2)
-  - Explanation: agent responds in chat. (1)
-- User applies a group: remaining edits write into document, group archives, learning sample emits. (1, 2)
+The agent maintains four kinds of context:
 
-Notes:
-- Terminal states are applied and deleted. Replace is not a third state — it is deleted with a `replaced_by` pointer.
-- Memory reads the pointer: no pointer = rejection; pointer = user wanted a different approach.
-- An edit goes stale when its target text is no longer locatable. Stale edits are not learned from.
-- NL enters chat as ground truth. UI operations enter log as system events. Both preserved for memory.
+- **Reader** — who they are, what they know, what they expect.
+- **Intent** — what the author wants to say, and what they want it to achieve.
+- **Domain** — the field's established knowledge: key facts, terminology, conventions.
+- **Sources** — the references the author's claims rest on, retrieved and checked on demand.
 
-## 6. Memory
+Missing information is asked for, not guessed. Everything collected is visible and editable, and small enough to stay in context every turn. Intent shifts as the document develops, so context is updated continuously, not collected once.
 
-Goals:
-1. Agent produces better edits over time by learning from user decisions.
-2. User has full visibility and control over what agent has learned.
+When intent is still forming, the agent helps the author think through structure and organization in chat — outlines, alternatives, questions — rather than proposing edits to the document.
 
-Design:
+### Verify claims
 
-Three categories:
-- **Knowledge** — domain facts not stated in the document. Agent records from user explanations in chat.
-- **Principle** — writing rules as pluggable markdown files. Pre-installed from reference files, or created when user explicitly states a new rule.
-- **Example** — resolved edit instances, stored independently and linked by reference to corresponding principles.
+The model can be confidently wrong [6], including about factual claims. For the subset of quality that CAN be mechanically checked [3] — citation accuracy, reference existence, source support — deterministic tools do the checking, not the model.
 
-Roles:
-- Agent records knowledge and classifies examples under principles. Agent (currently) does not create, modify, or merge principles.
-- Agent classifies resolved edits under principles and notifies user of what it learned.
-- User can review, edit, or delete any memory entry at any time. Only user creates or modifies principles.
+**Trigger:** A factual assertion appears in the document or a proposed edit.
 
-Storage:
-- Knowledge and examples are markdown, exportable, document-scoped. Principles are global, pluggable markdown files — shared across documents.
+**Mechanism:** A tool retrieves the source. A deterministic check confirms whether the source supports the claim. The author makes the final judgment.
 
-## Future Directions
+**Citation pipeline:** The agent cites only documents it has retrieved and read (PDF → markdown → indexed storage). Every citation is verified against the source text by deterministic tools. Uncited claims are flagged. The author can trace any citation to its exact location in the source.
 
-The current design prioritizes simplicity. The following directions are deferred until real usage reveals concrete limitations.
+**Output:** Verified with citation and source location, or flagged as unverified.
 
-**1. Principle DAG.** Principles can be modeled as a directed acyclic graph: root nodes are the four core dimensions; each operational guideline is a derived node connected by an inference edge (parent principle + observable fact → derived guideline). Benefits: conflict resolution becomes traceable through root dimensions, retrieval becomes precise by walking the DAG from task-relevant roots.
+### Simulate reader
 
-**2. Activation model.** Instead of loading principles by task type (agent predicts relevance), principles are activated by evidence: an example from a resolved edit traces back to a principle, that principle becomes active for subsequent sessions. First session loads only core principles; operational guidelines activate as examples accumulate. Long-inactive principles decay back to standby. Benefits: context is data-driven rather than agent-predicted, avoids Constraint #3 in retrieval decisions.
+Writer and reader bring different knowledge [1], and writing is one-directional [2] — the author cannot unknow what they know, and the reader is not there to signal confusion. The agent can do what the author cannot: read the text without the author's context.
 
-**3. Formal engine + LLM complementary architecture.** LLM and formal reasoning have complementary strengths. LLM handles semantics: interpreting user intent, judging text quality, reasoning in ambiguous contexts. Formal engine handles logic: consistency checking, conflict detection, dependency tracing across a rule set. Neither does the other's job well (Constraint #3: LLM fails at precise logic; formal engines cannot handle semantic ambiguity). Combined, a feedback loop emerges: LLM proposes new rules from user decisions → formal engine checks consistency against existing rules → on conflict, engine pinpoints the exact collision → LLM interprets the conflict semantically and suggests resolution → user decides → engine updates. Each step stays within its component's capability boundary. The Principle DAG (direction 1) is a natural substrate for this engine (e.g., dependency resolution via PubGrub-style algorithms). Deferred until the rule set grows complex enough that human management becomes impractical — the engine's value scales with rule count and interdependency.
+**Trigger:** Author requests it, or before proposing changes to a section.
 
----
+**Mechanism:** An isolated model call — no author intent, no chat history, no domain notes the reader would not have. The reader profile (from project context) tells the simulation who to play, not what the author meant. Without isolation, the simulation inherits the author's knowledge and sees nothing new.
 
-> Note: An earlier "immediate-sync" Review sketch (per-edit choices syncing to the
-> document instantly) was removed here because it contradicts the authoritative
-> apply-group model in section 5 above. The apply-group model — where the document
-> is unchanged until a coherent EditGroup is applied through backend validation —
-> is the design of record. See `handoff/01-product-architecture.md`.
+Any separate model call earns its place through context difference. All output returns through the proposal path. The author sees one agent.
+
+**Output:** Confusion points and comprehension gaps, fed into Propose.
+
+### Propose changes
+
+Most of writing quality comes down to human judgment, and the author's attention is scarce. So the agent proposes changes for review, and review has to be efficient.
+
+**Trigger:** The agent has an improvement to suggest — from its own analysis, from Verify, or from Simulate.
+
+**Mechanism:** An edit is an insertion, deletion, or replacement, anchored by a quote of the original text. The quote locates the edit for the backend and explains it to the author.
+
+The agent does not change the document without the author's decision: it proposes, the author applies or dismisses. The author must answer for every word — the gate rests on this accountability. That same decision is the signal Learn reads, so the gate and the learning loop are one act.
+
+**Grouping.** Edits group by issue. Groups that must be applied together are marked as such; the rest resolve independently.
+
+**Validation.** The backend checks before anything reaches the review queue: anchors locate uniquely, edits within a group do not overlap, pending groups do not collide.
+
+**Resolution.** Applied or dismissed — two terminal states. Before deciding, the author can ask the agent to explain an edit in chat. To adjust, the author requests a change; the agent proposes a new edit pointing back to the old one, and the old edit becomes dismissed-with-pointer.
+
+**Apply.** Applying a group writes its remaining edits into the document, archives the group, and emits the resolution as a learning sample for Learn.
+
+**Staleness.** An edit goes stale when its target can no longer be located. When in doubt, stale.
+
+**Pending proposals as context.** The agent sees its own open proposals before proposing in the same region.
+
+**Output:** A pending edit in the review queue, awaiting the author's decision.
+
+### Learn from decisions
+
+The model knows only what it is shown [4] — without explicit learning, every conversation starts from zero. But intent shifts [8], so learning must not freeze early decisions into permanent rules.
+
+**Trigger:** The author applies, dismisses, or adjusts a proposal.
+
+**Reading the pointer.** A resolved proposal ends applied or dismissed (see Propose). A dismissal either carries a pointer to its replacement or it does not. No pointer = a plain dismissal. A pointer = the author wanted a different approach, not a dismissal of the issue; the replacement edit is the corrective direction. Learning reads the pointer first, then weighs the signal below.
+
+**Signal ambiguity.** A bare dismissal — no pointer — is four-way ambiguous: not now, not here, not this way, or never. The agent does not guess. After repeated dismissals on one pattern, it asks one question.
+
+**Signal strength.** Line-by-line review weighs more than bulk apply. An adjustment encodes both what was wrong and what direction to take. When an edit goes stale because the author fixed the same area themselves, this is offered as a learning candidate: one-click confirm, never assumed.
+
+**Chat statements** are this conversation's intent, not permanent rules. Permanent rules require explicit confirmation. [8]
+
+**What the agent remembers** (all visible, editable, deletable):
+
+- **Domain knowledge** — facts from the author's explanations. Document-scoped.
+- **Writing rules** — files the author can read and modify. Each specifies when it applies: genre, section type, writing stage. Shared across documents.
+- **Edit examples** — resolved edits linked to the rules they illustrate. Classification can be wrong [6]; the author is notified and can reassign.
+
+Writing rule changes go through the proposal gate. Domain knowledge and edit examples are recorded without pre-approval — visible and reversible.
+
+**Output:** Updated domain knowledge, writing rules, or edit examples.
+
+## Quality
+
+Evaluation layers by what can be checked. [3]
+
+**Mechanically testable.** Anchor accuracy, apply integrity, citation verification. Zero silent corruption.
+
+**Measurable from usage.** Apply / adjust / dismiss rates by edit type. Proposal noise — the share dismissed or ignored [7]. Post-apply reversion — the author undoes a change shortly after applying it.
+
+**Judgment.** Sampled audits: do citations support their claims? Do reader-simulation confusion reports match edits the author later accepts? Does a writing rule's accept rate improve as examples accumulate?
+
+## Deferred
+
+Each item carries a trigger, not a date.
+
+- **Rule conflict detection** — trigger: retrieved rules frequently contradict each other.
+- **Retrieval ranking by evidence** — rank rules by linked-example recency. Loading order changes; existence does not.
+- **Multi-document projects** — trigger: projects outgrow a document outline plus on-demand section loading.
